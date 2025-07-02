@@ -9,6 +9,15 @@ const DB_FILE = path.join(__dirname, 'games.json'); // נגדיר את שם הק
 // Middleware לפענוח גוף הבקשה כ-JSON
 app.use(express.json());
 
+// ===================================================================
+//      Middleware חדש לדיבאגינג - ירוץ עבור כל בקשה נכנסת
+// ===================================================================
+app.use((req, res, next) => {
+  console.log(`Request received for: ${req.method} ${req.originalUrl}`);
+  next(); // ממשיכים לטיפול בבקשה
+});
+
+
 // פונקציית עזר שמוודאת שקובץ בסיס הנתונים קיים
 const ensureDbFileExists = async () => {
   try {
@@ -33,7 +42,7 @@ app.post('/api/submit-results', (req, res) => {
 });
 
 
-// ====[ נקודת הקצה החדשה לניהול משחקים ]====
+// נקודת הקצה החדשה לניהול משחקים
 app.post('/api/games', async (req, res) => {
   try {
     const { game_id, client_email } = req.body;
@@ -51,7 +60,7 @@ app.post('/api/games', async (req, res) => {
     games.push({ game_id, client_email, createdAt: new Date() });
 
     // 4. שמירת המערך המעודכן חזרה לקובץ
-    await fs.writeFile(DB_FILE, JSON.stringify(games, null, 2)); // `null, 2` הופך את הקובץ לקריא יותר
+    await fs.writeFile(DB_FILE, JSON.stringify(games, null, 2));
 
     console.log(`✅ משחק חדש נשמר: ID=${game_id}, Email=${client_email}`);
     
