@@ -1,82 +1,88 @@
 const express = require('express');
-const fs = require('fs').promises; // ייבוא מודול מערכת הקבצים, בגרסה המודרנית
+const fs = require('fs').promises;
 const path = require('path');
 
 const app = express();
 const PORT = 3000;
-const DB_FILE = path.join(__dirname, 'games.json'); // נגדיר את שם הקובץ שישמש כבסיס נתונים
+const GAMES_DB_FILE = path.join(__dirname, 'games.json');
+const QUESTIONS_DB_FILE = path.join(__dirname, 'questions.json');
 
-// Middleware לפענוח גוף הבקשה כ-JSON
 app.use(express.json());
 
-// ===================================================================
-//      Middleware חדש לדיבאגינג - ירוץ עבור כל בקשה נכנסת
-// ===================================================================
-app.use((req, res, next) => {
-  console.log(`Request received for: ${req.method} ${req.originalUrl}`);
-  next(); // ממשיכים לטיפול בבקשה
-});
-
-
-// פונקציית עזר שמוודאת שקובץ בסיס הנתונים קיים
-const ensureDbFileExists = async () => {
+const ensureDbFileExists = async (filePath, defaultContent = '[]') => {
   try {
-    await fs.access(DB_FILE);
+    await fs.access(filePath);
   } catch (error) {
-    // אם הקובץ לא קיים, ניצור אותו עם מערך ריק
-    await fs.writeFile(DB_FILE, JSON.stringify([]));
+    await fs.writeFile(filePath, defaultContent);
   }
 };
 
-
-// נקודת קצה קיימת לבדיקה שהשרת רץ
-app.get('/', (req, res) => {
-  res.send('API Version 2 is running! ✅✅');
+// ====[ נתיב חדש להצגת דף הניהול ]====
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
-// נקודת קצה קיימת לקבלת תוצאות המשחק
-app.post('/api/submit-results', (req, res) => {
-  console.log('📥 קיבלנו תוצאות משחק:', req.body);
-  // כאן בעתיד תהיה הלוגיקה לעיבוד התוצאות
-  res.json({ status: 'success', message: 'התוצאות התקבלו בהצלחה' });
-});
+// ====[ נתיבי API לניהול שאלות ]====
 
-
-// נקודת הקצה החדשה לניהול משחקים
-app.post('/api/games', async (req, res) => {
+app.get('/api/questions', async (req, res) => {
   try {
-    const { game_id, client_email } = req.body;
-
-    // 1. בדיקת תקינות הקלט
-    if (!game_id || !client_email) {
-      return res.status(400).json({ status: 'error', message: 'game_id and client_email are required' });
-    }
-
-    // 2. קריאת הנתונים הקיימים מהקובץ
-    const fileContent = await fs.readFile(DB_FILE, 'utf-8');
-    const games = JSON.parse(fileContent);
-
-    // 3. הוספת המשחק החדש למערך
-    games.push({ game_id, client_email, createdAt: new Date() });
-
-    // 4. שמירת המערך המעודכן חזרה לקובץ
-    await fs.writeFile(DB_FILE, JSON.stringify(games, null, 2));
-
-    console.log(`✅ משחק חדש נשמר: ID=${game_id}, Email=${client_email}`);
-    
-    // 5. החזרת תשובת הצלחה
-    res.status(201).json({ status: 'success', message: 'המשחק נשמר בהצלחה' });
-
+    const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
+    res.json(JSON.parse(questionsData));
   } catch (error) {
-    console.error('❌ Error saving game:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 });
 
+app.post('/api/questions', async (req, res) => {
+  try {
+    const newQuestion = req.body;
+    if (!newQuestion.question_id || !newQuestion.question_text || !newQuestion.answers_mapping) {
+      return res.status(400).json({ status: 'error', message: 'Invalid question format' });
+    }
+    const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
+    const questions = JSON.parse(questionsData);
+    questions.push(newQuestion);
+    await fs.writeFile(QUESTIONS_DB_FILE, JSON.stringify(questions, null, 2));
+    res.status(201).json({ status: 'success', message: 'Question added successfully' });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+});
+
+// ====[ נתיב חדש למחיקת שאלה ]====
+app.delete('/api/questions/:questionId', async (req, res) => {
+    try {
+        const { questionId } = req.params;
+        const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
+        let questions = JSON.parse(questionsData);
+
+        // סינון המערך - משאירים את כל השאלות שה-ID שלהן לא תואם לזה שנרצה למחוק
+        const updatedQuestions = questions.filter(q => q.question_id !== questionId);
+
+        if (questions.length === updatedQuestions.length) {
+            return res.status(404).json({ status: 'error', message: 'Question not found' });
+        }
+
+        await fs.writeFile(QUESTIONS_DB_FILE, JSON.stringify(updatedQuestions, null, 2));
+        res.json({ status: 'success', message: `Question ${questionId} deleted successfully` });
+    } catch (error) {
+        res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+    }
+});
+
+
+// ====[ נתיבי API קיימים ]====
+app.get('/', (req, res) => {
+  res.send('Go to /admin to manage questions.');
+});
+// ... שאר הנתיבים שלך ...
+app.post('/api/submit-results', (req, res) => { /* ... */ });
+app.post('/api/games', (req, res) => { /* ... */ });
 
 // הפעלת השרת
 app.listen(PORT, '0.0.0.0', async () => {
-  await ensureDbFileExists(); // נוודא שהקובץ קיים לפני שהשרת מתחיל להאזין
+  await ensureDbFileExists(GAMES_DB_FILE);
+  await ensureDbFileExists(QUESTIONS_DB_FILE);
   console.log(`✅ Server is running on port ${PORT}`);
-  console.log(`🗄️ Database file is at: ${DB_FILE}`);
+  console.log(`🚀 Admin interface is available at http://localhost:${PORT}/admin`);
 });
