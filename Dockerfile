@@ -1,24 +1,8 @@
-# Use an official Node.js runtime as a parent image
 FROM node:20-alpine
-
-# Set the working directory in the container
 WORKDIR /app
-
-# Copy package files
 COPY package*.json ./
-
-# Install dependencies
 RUN npm install
-
-# Copy the rest of the application code
 COPY . .
-
-# Expose the port the app runs on
 EXPOSE 3000
-
-# Add health check for CapRover
-HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl --fail http://localhost:3000/ || exit 1
-
-# Define the command to run the app
-CMD ["npm", "start"]
+HEALTHCHECK CMD wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1
+CMD ["node", "index.js"]
