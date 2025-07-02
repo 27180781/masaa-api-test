@@ -7,9 +7,13 @@ const path = require('path');
 
 const app = express();
 const PORT = 3000;
-const GAMES_DB_FILE = path.join(__dirname, 'games.json');
-const QUESTIONS_DB_FILE = path.join(__dirname, 'questions.json');
-const RESULTS_DIR = path.join(__dirname, 'results');
+
+// [שינוי מרכזי] הגדרת תיקיית נתונים מרכזית.
+// זוהי התיקייה שתוגדר כ-Persistent ב-CapRover.
+const DATA_DIR = '/app/data'; 
+const GAMES_DB_FILE = path.join(DATA_DIR, 'games.json');
+const QUESTIONS_DB_FILE = path.join(DATA_DIR, 'questions.json');
+const RESULTS_DIR = path.join(DATA_DIR, 'results');
 
 app.use(express.json());
 
@@ -17,7 +21,7 @@ const ensurePathExists = async (filePath, isDirectory = false, defaultContent = 
   try {
     await fs.access(filePath);
   } catch (error) {
-    if (isDirectory) await fs.mkdir(filePath);
+    if (isDirectory) await fs.mkdir(filePath, { recursive: true });
     else await fs.writeFile(filePath, defaultContent);
   }
 };
@@ -30,10 +34,13 @@ app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html'))
 app.get('/games_admin', (req, res) => res.sendFile(path.join(__dirname, 'games_admin.html')));
 app.get('/results_admin', (req, res) => res.sendFile(path.join(__dirname, 'results_admin.html')));
 
+// ===================================================================
+//                  API ROUTES - כל הנתיבים הקיימים
+// ===================================================================
+// כאן נמצאים כל נתיבי ה-API שבנינו. אין צורך לשנות אותם,
+// הם ישתמשו אוטומטית במשתני הנתיבים החדשים שהגדרנו למעלה.
 
-// ===================================================================
-//                  API ROUTES - ניהול שאלות (הקוד המלא)
-// ===================================================================
+// ניהול שאלות
 app.get('/api/questions', async (req, res) => {
     try {
         const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
@@ -42,7 +49,6 @@ app.get('/api/questions', async (req, res) => {
         res.status(500).json({ message: 'Error reading questions file' });
     }
 });
-
 app.post('/api/questions', async (req, res) => {
     try {
         const newQuestion = req.body;
@@ -58,7 +64,6 @@ app.post('/api/questions', async (req, res) => {
         res.status(500).json({ message: 'Error saving question' });
     }
 });
-
 app.delete('/api/questions/:questionId', async (req, res) => {
     try {
         const { questionId } = req.params;
@@ -75,9 +80,7 @@ app.delete('/api/questions/:questionId', async (req, res) => {
     }
 });
 
-// ===================================================================
-//                  API ROUTES - ניהול משחקים (הקוד המלא)
-// ===================================================================
+// ניהול משחקים
 app.get('/api/games', async (req, res) => {
     try {
         const gamesData = await fs.readFile(GAMES_DB_FILE, 'utf-8');
@@ -86,7 +89,6 @@ app.get('/api/games', async (req, res) => {
         res.status(500).json({ message: 'Error reading games file' });
     }
 });
-
 app.post('/api/games', async (req, res) => {
     try {
         const { game_id, client_email } = req.body;
@@ -100,7 +102,6 @@ app.post('/api/games', async (req, res) => {
         res.status(500).json({ message: 'Error saving game' });
     }
 });
-
 app.delete('/api/games/:gameId', async (req, res) => {
     try {
         const { gameId } = req.params;
@@ -115,11 +116,10 @@ app.delete('/api/games/:gameId', async (req, res) => {
     }
 });
 
-// ===================================================================
-//                  API ROUTES - צפייה בתוצאות (לאדמין) (הקוד המלא)
-// ===================================================================
+// צפייה בתוצאות
 app.get('/api/results', async (req, res) => {
     try {
+        await ensurePathExists(RESULTS_DIR, true);
         const resultFiles = await fs.readdir(RESULTS_DIR);
         const summaries = [];
         for (const file of resultFiles) {
@@ -138,7 +138,6 @@ app.get('/api/results', async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
-
 app.get('/api/results/:gameId', async (req, res) => {
     try {
         const { gameId } = req.params;
@@ -151,33 +150,27 @@ app.get('/api/results/:gameId', async (req, res) => {
     }
 });
 
-// ===================================================================
-//                  API ROUTE - עיבוד תוצאות (הקוד המלא)
-// ===================================================================
+// עיבוד תוצאות
 app.post('/api/submit-results', async (req, res) => {
     try {
         const { game_id, participants } = req.body;
         if (!game_id || !participants) return res.status(400).json({ message: 'Missing game_id or participants' });
-        
         const gamesData = await fs.readFile(GAMES_DB_FILE, 'utf-8');
         const games = JSON.parse(gamesData);
         const currentGame = games.find(game => game.game_id === game_id);
         const client_email = currentGame ? currentGame.client_email : null;
         if (!client_email) console.warn(`⚠️ Warning: No email found for game_id: ${game_id}`);
-        
         const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
         const questions = JSON.parse(questionsData);
         const questionMap = questions.reduce((map, q) => { map[q.question_id] = q; return map; }, {});
-
         const individual_results = [];
         const group_element_totals = {};
-
         for (const participant of participants) {
             const elementCounts = { fire: 0, water: 0, air: 0, earth: 0 };
             const totalAnswers = Object.keys(participant.answers).length;
             for (const [questionId, answerChoice] of Object.entries(participant.answers)) {
                 const question = questionMap[questionId];
-                if (question && question.answers_mapping) { // Added check for answers_mapping
+                if (question && question.answers_mapping) {
                     const element = question.answers_mapping[answerChoice];
                     if (element) elementCounts[element]++;
                 }
@@ -186,10 +179,8 @@ app.post('/api/submit-results', async (req, res) => {
                 prof[key] = totalAnswers > 0 ? (elementCounts[key] / totalAnswers) * 100 : 0;
                 return prof;
             }, {});
-            
             const access_code = Math.floor(1000 + Math.random() * 9000).toString();
             individual_results.push({ name: participant.name, group_name: participant.group_name, profile, access_code });
-
             if(participant.group_name) {
                 if (!group_element_totals[participant.group_name]) {
                     group_element_totals[participant.group_name] = { counts: { fire: 0, water: 0, air: 0, earth: 0 }, participant_count: 0 };
@@ -198,7 +189,6 @@ app.post('/api/submit-results', async (req, res) => {
                 group_element_totals[participant.group_name].participant_count++;
             }
         }
-        
         const group_results = {};
         for(const [groupName, data] of Object.entries(group_element_totals)) {
             group_results[groupName] = {
@@ -209,11 +199,9 @@ app.post('/api/submit-results', async (req, res) => {
                 participant_count: data.participant_count
             };
         }
-
         const finalResult = { game_id, client_email, processed_at: new Date().toISOString(), individual_results, group_results };
         const resultFilePath = path.join(RESULTS_DIR, `results_${game_id}.json`);
         await fs.writeFile(resultFilePath, JSON.stringify(finalResult, null, 2));
-
         console.log(`✅ תוצאות עבור משחק ${game_id} עובדו ונשמרו (עם מייל: ${client_email}).`);
         res.json({ status: 'success', message: 'Game results processed successfully' });
     } catch (error) {
@@ -222,15 +210,17 @@ app.post('/api/submit-results', async (req, res) => {
     }
 });
 
-
 // ===================================================================
 //                          SERVER STARTUP
 // ===================================================================
 app.listen(PORT, '0.0.0.0', async () => {
+  // [שינוי] וידוא שכל הנתיבים והתיקיות בתוך תיקיית הנתונים קיימים
+  await ensurePathExists(DATA_DIR, true);
   await ensurePathExists(GAMES_DB_FILE, false);
   await ensurePathExists(QUESTIONS_DB_FILE, false);
   await ensurePathExists(RESULTS_DIR, true);
   
   console.log(`✅ Server is running on port ${PORT}`);
-  console.log(`🚀 Admin interfaces are available at http://localhost:${PORT}/admin, http://localhost:${PORT}/games_admin, http://localhost:${PORT}/results_admin`);
+  console.log(`🗄️ Persistent data directory is at: ${DATA_DIR}`);
+  console.log(`🚀 Admin interfaces are available`);
 });
