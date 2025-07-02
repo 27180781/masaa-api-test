@@ -28,16 +28,55 @@ const ensurePathExists = async (filePath, isDirectory = false, defaultContent = 
 app.get('/', (req, res) => res.send('API is running. Go to /admin or /games_admin.'));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('/games_admin', (req, res) => res.sendFile(path.join(__dirname, 'games_admin.html')));
+app.get('/results_admin', (req, res) => res.sendFile(path.join(__dirname, 'results_admin.html')));
+
 
 // ===================================================================
-//                  API ROUTES - ניהול שאלות
+//                  API ROUTES - ניהול שאלות (הקוד המלא)
 // ===================================================================
-app.get('/api/questions', async (req, res) => { /* ...כמו שהיה... */ });
-app.post('/api/questions', async (req, res) => { /* ...כמו שהיה... */ });
-app.delete('/api/questions/:questionId', async (req, res) => { /* ...כמו שהיה... */ });
+app.get('/api/questions', async (req, res) => {
+    try {
+        const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
+        res.json(JSON.parse(questionsData));
+    } catch (error) {
+        res.status(500).json({ message: 'Error reading questions file' });
+    }
+});
+
+app.post('/api/questions', async (req, res) => {
+    try {
+        const newQuestion = req.body;
+        if (!newQuestion.question_id || !newQuestion.question_text || !newQuestion.answers_mapping) {
+            return res.status(400).json({ message: 'Invalid question format' });
+        }
+        const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
+        const questions = JSON.parse(questionsData);
+        questions.push(newQuestion);
+        await fs.writeFile(QUESTIONS_DB_FILE, JSON.stringify(questions, null, 2));
+        res.status(201).json({ message: 'Question added successfully', question: newQuestion });
+    } catch (error) {
+        res.status(500).json({ message: 'Error saving question' });
+    }
+});
+
+app.delete('/api/questions/:questionId', async (req, res) => {
+    try {
+        const { questionId } = req.params;
+        const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
+        let questions = JSON.parse(questionsData);
+        const updatedQuestions = questions.filter(q => q.question_id !== questionId);
+        if (questions.length === updatedQuestions.length) {
+            return res.status(404).json({ message: 'Question not found' });
+        }
+        await fs.writeFile(QUESTIONS_DB_FILE, JSON.stringify(updatedQuestions, null, 2));
+        res.json({ message: `Question ${questionId} deleted successfully` });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting question' });
+    }
+});
 
 // ===================================================================
-//                  API ROUTES - ניהול משחקים
+//                  API ROUTES - ניהול משחקים (הקוד המלא)
 // ===================================================================
 app.get('/api/games', async (req, res) => {
     try {
@@ -75,16 +114,14 @@ app.delete('/api/games/:gameId', async (req, res) => {
         res.status(500).json({ message: 'Error deleting game' });
     }
 });
-// ===================================================================
-//                  API ROUTES - צפייה בתוצאות (לאדמין)
-// ===================================================================
 
-// GET - קבלת רשימת כל התוצאות שקיימות
+// ===================================================================
+//                  API ROUTES - צפייה בתוצאות (לאדמין) (הקוד המלא)
+// ===================================================================
 app.get('/api/results', async (req, res) => {
     try {
         const resultFiles = await fs.readdir(RESULTS_DIR);
         const summaries = [];
-
         for (const file of resultFiles) {
             if (file.startsWith('results_') && file.endsWith('.json')) {
                 const fileContent = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
@@ -98,12 +135,10 @@ app.get('/api/results', async (req, res) => {
         }
         res.json(summaries.sort((a, b) => new Date(b.processed_at) - new Date(a.processed_at)));
     } catch (error) {
-        console.error('❌ Error listing results:', error);
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
 
-// GET - קבלת תוצאה מלאה של משחק ספציפי
 app.get('/api/results/:gameId', async (req, res) => {
     try {
         const { gameId } = req.params;
@@ -111,22 +146,13 @@ app.get('/api/results/:gameId', async (req, res) => {
         const fileContent = await fs.readFile(filePath, 'utf-8');
         res.json(JSON.parse(fileContent));
     } catch (error) {
-        // אם הקובץ לא נמצא, שלח 404
-        if (error.code === 'ENOENT') {
-            return res.status(404).json({ message: 'Result not found' });
-        }
-        console.error('❌ Error reading result file:', error);
+        if (error.code === 'ENOENT') return res.status(404).json({ message: 'Result not found' });
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
 
-// וגם, הוסף נתיב חדש שיגיש את הדף שבנינו
-app.get('/results_admin', (req, res) => {
-    res.sendFile(path.join(__dirname, 'results_admin.html'));
-});
-
 // ===================================================================
-//                  API ROUTE - עיבוד תוצאות
+//                  API ROUTE - עיבוד תוצאות (הקוד המלא)
 // ===================================================================
 app.post('/api/submit-results', async (req, res) => {
     try {
@@ -151,7 +177,7 @@ app.post('/api/submit-results', async (req, res) => {
             const totalAnswers = Object.keys(participant.answers).length;
             for (const [questionId, answerChoice] of Object.entries(participant.answers)) {
                 const question = questionMap[questionId];
-                if (question) {
+                if (question && question.answers_mapping) { // Added check for answers_mapping
                     const element = question.answers_mapping[answerChoice];
                     if (element) elementCounts[element]++;
                 }
@@ -164,11 +190,13 @@ app.post('/api/submit-results', async (req, res) => {
             const access_code = Math.floor(1000 + Math.random() * 9000).toString();
             individual_results.push({ name: participant.name, group_name: participant.group_name, profile, access_code });
 
-            if (!group_element_totals[participant.group_name]) {
-                group_element_totals[participant.group_name] = { counts: { fire: 0, water: 0, air: 0, earth: 0 }, participant_count: 0 };
+            if(participant.group_name) {
+                if (!group_element_totals[participant.group_name]) {
+                    group_element_totals[participant.group_name] = { counts: { fire: 0, water: 0, air: 0, earth: 0 }, participant_count: 0 };
+                }
+                Object.keys(profile).forEach(elem => group_element_totals[participant.group_name].counts[elem] += profile[elem]);
+                group_element_totals[participant.group_name].participant_count++;
             }
-            Object.keys(profile).forEach(elem => group_element_totals[participant.group_name].counts[elem] += profile[elem]);
-            group_element_totals[participant.group_name].participant_count++;
         }
         
         const group_results = {};
@@ -194,6 +222,7 @@ app.post('/api/submit-results', async (req, res) => {
     }
 });
 
+
 // ===================================================================
 //                          SERVER STARTUP
 // ===================================================================
@@ -203,5 +232,5 @@ app.listen(PORT, '0.0.0.0', async () => {
   await ensurePathExists(RESULTS_DIR, true);
   
   console.log(`✅ Server is running on port ${PORT}`);
-  console.log(`🚀 Admin interfaces are available at http://localhost:${PORT}/admin and http://localhost:${PORT}/games_admin`);
+  console.log(`🚀 Admin interfaces are available at http://localhost:${PORT}/admin, http://localhost:${PORT}/games_admin, http://localhost:${PORT}/results_admin`);
 });
