@@ -5,6 +5,10 @@ const PORT = 3000;
 
 app.use(bodyParser.json());
 
+app.get('/', (req, res) => {
+  res.send('API is running ✅');
+});
+
 app.post('/api/submit-results', (req, res) => {
   console.log('📥 קיבלנו נתונים:', req.body);
   res.json({ status: 'success', message: 'הנתונים התקבלו' });
