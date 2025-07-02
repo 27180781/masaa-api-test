@@ -75,6 +75,55 @@ app.delete('/api/games/:gameId', async (req, res) => {
         res.status(500).json({ message: 'Error deleting game' });
     }
 });
+// ===================================================================
+//                  API ROUTES - צפייה בתוצאות (לאדמין)
+// ===================================================================
+
+// GET - קבלת רשימת כל התוצאות שקיימות
+app.get('/api/results', async (req, res) => {
+    try {
+        const resultFiles = await fs.readdir(RESULTS_DIR);
+        const summaries = [];
+
+        for (const file of resultFiles) {
+            if (file.startsWith('results_') && file.endsWith('.json')) {
+                const fileContent = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
+                const resultData = JSON.parse(fileContent);
+                summaries.push({
+                    game_id: resultData.game_id,
+                    client_email: resultData.client_email,
+                    processed_at: resultData.processed_at
+                });
+            }
+        }
+        res.json(summaries.sort((a, b) => new Date(b.processed_at) - new Date(a.processed_at)));
+    } catch (error) {
+        console.error('❌ Error listing results:', error);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+});
+
+// GET - קבלת תוצאה מלאה של משחק ספציפי
+app.get('/api/results/:gameId', async (req, res) => {
+    try {
+        const { gameId } = req.params;
+        const filePath = path.join(RESULTS_DIR, `results_${gameId}.json`);
+        const fileContent = await fs.readFile(filePath, 'utf-8');
+        res.json(JSON.parse(fileContent));
+    } catch (error) {
+        // אם הקובץ לא נמצא, שלח 404
+        if (error.code === 'ENOENT') {
+            return res.status(404).json({ message: 'Result not found' });
+        }
+        console.error('❌ Error reading result file:', error);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+});
+
+// וגם, הוסף נתיב חדש שיגיש את הדף שבנינו
+app.get('/results_admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'results_admin.html'));
+});
 
 // ===================================================================
 //                  API ROUTE - עיבוד תוצאות
