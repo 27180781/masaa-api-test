@@ -31,7 +31,7 @@ const ensureDbFileExists = async () => {
 
 // נקודת קצה קיימת לבדיקה שהשרת רץ
 app.get('/', (req, res) => {
-  res.send('API is running ✅');
+  res.send('API Version 2 is running! ✅✅');
 });
 
 // נקודת קצה קיימת לקבלת תוצאות המשחק
