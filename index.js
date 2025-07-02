@@ -1,9 +1,11 @@
 const express = require('express');
-const bodyParser = require('body-parser');
+// אין צורך יותר ב-require('body-parser');
+
 const app = express();
 const PORT = 3000;
 
-app.use(bodyParser.json());
+// השתמש ביכולת המובנית של Express לפענח JSON
+app.use(express.json());
 
 app.get('/', (req, res) => {
   res.send('API is running ✅');
