@@ -20,8 +20,7 @@
     <h1>ניהול שאלות - מסע אל תוך עצמי</h1>
 
     <h2>רשימת השאלות הקיימות</h2>
-    <ul id="questionsList" class="question-list">
-        </ul>
+    <ul id="questionsList" class="question-list"></ul>
 
     <div class="form-container">
         <h2>הוספת שאלה חדשה</h2>
@@ -54,13 +53,12 @@
         const questionsList = document.getElementById('questionsList');
         const addQuestionForm = document.getElementById('addQuestionForm');
 
-        // פונקציה לטעינת כל השאלות מהשרת
         async function fetchQuestions() {
             try {
                 const response = await fetch('/api/questions');
                 const questions = await response.json();
                 
-                questionsList.innerHTML = ''; // ניקוי הרשימה הקיימת
+                questionsList.innerHTML = '';
                 questions.forEach(q => {
                     const li = document.createElement('li');
                     li.className = 'question-item';
@@ -76,49 +74,44 @@
             }
         }
 
-        // פונקציה למחיקת שאלה
         async function deleteQuestion(questionId) {
             if (!confirm(`האם אתה בטוח שברצונך למחוק את שאלה ${questionId}?`)) return;
-
             try {
                 await fetch(`/api/questions/${questionId}`, { method: 'DELETE' });
-                fetchQuestions(); // טעינה מחדש של הרשימה אחרי המחיקה
+                fetchQuestions();
             } catch (error) {
                 console.error('Error deleting question:', error);
             }
         }
 
-        // טיפול בהוספת שאלה חדשה
         addQuestionForm.addEventListener('submit', async (e) => {
-            e.preventDefault(); // מניעת שליחת טופס רגילה
-            
+            e.preventDefault();
             const formData = new FormData(addQuestionForm);
-            
             const newQuestion = {
                 question_id: formData.get('question_id'),
                 question_text: formData.get('question_text'),
                 answers_mapping: {
-                    '1': formData.get('ans1'),
-                    '2': formData.get('ans2'),
-                    '3': formData.get('ans3'),
-                    '4': formData.get('ans4')
+                    '1': formData.get('ans1'), '2': formData.get('ans2'),
+                    '3': formData.get('ans3'), '4': formData.get('ans4')
                 }
             };
-
             try {
-                await fetch('/api/questions', {
+                const res = await fetch('/api/questions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(newQuestion)
                 });
-                addQuestionForm.reset(); // איפוס הטופס
-                fetchQuestions(); // טעינה מחדש של הרשימה
+                if (res.ok) {
+                    addQuestionForm.reset();
+                    fetchQuestions();
+                } else {
+                    alert('Error adding question');
+                }
             } catch (error) {
                 console.error('Error adding question:', error);
             }
         });
 
-        // טעינת השאלות בפעם הראשונה שהדף עולה
         fetchQuestions();
     </script>
 
