@@ -1,0 +1,59 @@
+{
+  "game_id": "family-reuven-july2025",
+  "processed_at": "2025-07-02T20:13:11.582Z",
+  "individual_results": [
+    {
+      "name": "יוסי",
+      "group_name": "משפחת כהן",
+      "profile": {
+        "fire": 0,
+        "water": 0,
+        "air": 0,
+        "earth": 0
+      },
+      "access_code": "2552"
+    },
+    {
+      "name": "דנה",
+      "group_name": "משפחת כהן",
+      "profile": {
+        "fire": 0,
+        "water": 0,
+        "air": 0,
+        "earth": 0
+      },
+      "access_code": "8717"
+    },
+    {
+      "name": "משה",
+      "group_name": "משפחת לוי",
+      "profile": {
+        "fire": 0,
+        "water": 0,
+        "air": 0,
+        "earth": 0
+      },
+      "access_code": "6341"
+    }
+  ],
+  "group_results": {
+    "משפחת כהן": {
+      "profile": {
+        "fire": 0,
+        "water": 0,
+        "air": 0,
+        "earth": 0
+      },
+      "participant_count": 2
+    },
+    "משפחת לוי": {
+      "profile": {
+        "fire": 0,
+        "water": 0,
+        "air": 0,
+        "earth": 0
+      },
+      "participant_count": 1
+    }
+  }
+}
