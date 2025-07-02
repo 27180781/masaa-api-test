@@ -1,0 +1,25 @@
+
+# התעלמות מתיקיית התלויות של Node.js
+node_modules/
+
+# קבצי לוגים
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# קבצים זמניים של מערכת ההפעלה
+.DS_Store
+Thumbs.db
+
+# סביבות עבודה של IDE
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# קבצים שנוצרים אוטומטית בפריסה
+dist/
+build/
+.env
