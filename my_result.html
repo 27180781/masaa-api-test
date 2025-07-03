@@ -10,11 +10,13 @@
         .search-container { background-color: #f7f8fb; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
         input[type="text"] { width: 250px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
         button { background-color: #27ae60; color: white; padding: 10px 20px; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; margin-right: 5px; }
-        #resultsContainer { text-align: right; }
+        #resultsContainer { text-align: right; border: 1px solid #eee; padding: 20px; border-radius: 8px; margin-top: 20px; }
         .insight-text { font-size: 1.1em; line-height: 1.6; }
         .insight-text p { margin: 10px 0; }
         .insight-text strong { color: #1d5b85; }
+        .insight-text ul { padding-right: 20px; }
         .profile-bars-container { margin: 20px 0; }
+        .profile-bar { display: inline-block; height: 10px; background-color: #3295c7; border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -34,9 +36,51 @@
         const searchButton = document.getElementById('searchButton');
         const resultsContainer = document.getElementById('resultsContainer');
 
-        function createProfileBars(profile) { /* ... כמו שהיה ... */ }
-        function getDominantElement(profile) { /* ... כמו שהיה ... */ }
-        function generateInsightHTML(profile, insights) { /* ... כמו שהיה ... */ }
+        function createProfileBars(profile) {
+            let barsHtml = '<div style="font-size: 0.8em; width: 200px;">';
+            for (const [element, value] of Object.entries(profile)) {
+                const color = {fire: '#e74c3c', water: '#3498db', air: '#f1c40f', earth: '#2ecc71'}[element] || '#ccc';
+                barsHtml += `
+                    <div>
+                        <span style="display: inline-block; width: 50px;">${element}:</span>
+                        <div style="display: inline-block; width: 100px; background-color: #eee; border-radius: 5px;">
+                            <div class="profile-bar" style="width: ${value.toFixed(0)}%; background-color: ${color};"></div>
+                        </div>
+                        <span style="margin-right: 5px;">${value.toFixed(1)}%</span>
+                    </div>
+                `;
+            }
+            return barsHtml + '</div>';
+        }
+
+        function getDominantElement(profile) {
+            if (!profile || Object.keys(profile).length === 0) return null;
+            return Object.keys(profile).reduce((a, b) => profile[a] > profile[b] ? a : b);
+        }
+
+        function generateInsightHTML(profile, insights) {
+            if (!insights || !profile) return '<p>אין נתוני תובנות</p>';
+
+            const dominantElement = getDominantElement(profile);
+            let html = `<div class="insight-text">`;
+            
+            if (dominantElement && insights.dominant_insights && insights.dominant_insights[dominantElement]) {
+                html += `<p><strong>התכונה הדומיננטית:</strong> ${insights.dominant_insights[dominantElement]}</p><hr style="margin: 5px 0;">`;
+            }
+
+            html += `<p><strong>פירוט נוסף:</strong></p><ul>`;
+            for (const [element, value] of Object.entries(profile)) {
+                if (insights.general_insights && insights.general_insights[element]) {
+                    const sortedRules = insights.general_insights[element].sort((a,b) => b.min_percent - a.min_percent);
+                    const applicableRule = sortedRules.find(rule => value >= rule.min_percent);
+                    if (applicableRule) {
+                        html += `<li><strong>${element}:</strong> ${applicableRule.text}</li>`;
+                    }
+                }
+            }
+            html += '</ul></div>';
+            return html;
+        }
 
         async function findMyResults() {
             const query = searchInput.value.trim();
@@ -47,8 +91,7 @@
 
             resultsContainer.innerHTML = '<p>מחפש את התוצאות שלך...</p>';
             
-            // נבדוק אם זה נראה כמו מספר טלפון או קוד
-            const isPhoneNumber = /^\d{10,}$/.test(query.replace(/-/g, ''));
+            const isPhoneNumber = /^\d{7,}$/.test(query.replace(/-/g, ''));
             const endpoint = isPhoneNumber 
                 ? `/api/my-result/by-phone/${query}` 
                 : `/api/my-result/by-code/${query}`;
@@ -59,7 +102,13 @@
                     fetch('/api/insights')
                 ]);
 
-                if (!resultRes.ok) throw new Error('התוצאות לא נמצאו. אנא ודא שהקוד או מספר הטלפון נכונים.');
+                if (!resultRes.ok) {
+                    throw new Error('התוצאות לא נמצאו. אנא ודא שהקוד או מספר הטלפון נכונים.');
+                }
+                 if (!insightsRes.ok) {
+                    throw new Error('שגיאה בטעינת מודל התובנות.');
+                }
+
 
                 const result = await resultRes.json();
                 const insights = await insightsRes.json();
@@ -78,11 +127,11 @@
 
         searchButton.addEventListener('click', findMyResults);
         searchInput.addEventListener('keyup', (e) => {
-            if (e.key === 'Enter') findMyResults();
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                findMyResults();
+            }
         });
-
-        // העתק לכאן את הפונקציות המלאות מ-results_admin.html
-        // createProfileBars, getDominantElement, generateInsightHTML
     </script>
 </body>
 </html>
