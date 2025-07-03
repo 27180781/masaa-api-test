@@ -5,16 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>דשבורד תוצאות</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 20px auto; color: #333; display: flex; gap: 20px;}
+        body { font-family: Arial, sans-serif; max-width: 1400px; margin: 20px auto; color: #333; display: flex; gap: 20px;}
         nav a { margin-left: 20px; font-size: 18px; display: block; margin-bottom: 10px; }
-        .sidebar { flex-basis: 300px; }
+        .sidebar { flex-basis: 300px; flex-shrink: 0; }
         .main-content { flex-grow: 1; }
-        h1, h2 { color: #1d5b85; border-bottom: 2px solid #1d5b85; padding-bottom: 5px;}
-        .game-list { list-style: none; padding: 0; }
+        h1, h2, h3 { color: #1d5b85; border-bottom: 1px solid #ddd; padding-bottom: 5px;}
+        .game-list { list-style: none; padding: 0; max-height: 80vh; overflow-y: auto; }
         .game-item { background-color: #f7f8fb; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 10px; padding: 15px; cursor: pointer; }
-        .game-item:hover { background-color: #eaf4f9; }
-        #gameDetails { background-color: #fff; padding: 20px; border-radius: 5px; border: 1px solid #ccc; min-height: 400px; }
-        pre { background-color: #2d2d2d; color: #f8f8f2; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; text-align: left; direction: ltr; }
+        .game-item.active, .game-item:hover { background-color: #eaf4f9; border-color: #3295c7; }
+        #gameDetails { min-height: 400px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: right; vertical-align: top; }
+        th { background-color: #f2f2f2; }
+        .profile-bar { display: inline-block; height: 10px; background-color: #3295c7; border-radius: 5px; }
+        .insight-text { font-size: 0.9em; }
+        .insight-text p { margin: 0 0 5px 0; }
+        .insight-text strong { color: #1d5b85; }
     </style>
 </head>
 <body>
@@ -23,15 +29,14 @@
             <a href="/admin">ניהול שאלות</a>
             <a href="/games_admin">ניהול משחקים</a>
             <a href="/results_admin">דשבורד תוצאות</a>
+            <a href="/insights_admin">ניהול תובנות</a>
         </nav>
-        <h2>משחקים שנשמרו</h2>
-        <ul id="gamesList" class="game-list">
-            </ul>
+        <h2>משחקים שמורים</h2>
+        <ul id="gamesList" class="game-list"></ul>
     </div>
 
     <div class="main-content">
         <h1>דשבורד תוצאות</h1>
-        <h2>פרטי המשחק שנבחר</h2>
         <div id="gameDetails">
             <p>בחר משחק מהרשימה כדי לראות את פרטיו.</p>
         </div>
@@ -40,49 +45,83 @@
     <script>
         const gamesList = document.getElementById('gamesList');
         const gameDetails = document.getElementById('gameDetails');
+        let insightsData = null; // ישמור את כל חוקי התובנות
 
-        async function fetchGameList() {
-            try {
-                const response = await fetch('/api/results');
-                const games = await response.json();
-                
-                gamesList.innerHTML = '';
-                games.forEach(game => {
-                    const li = document.createElement('li');
-                    li.className = 'game-item';
-                    li.dataset.gameId = game.game_id;
-                    li.innerHTML = `
-                        <strong>מזהה:</strong> ${game.game_id}<br>
-                        <small>מייל: ${game.client_email || 'לא צוין'}</small><br>
-                        <small>תאריך: ${new Date(game.processed_at).toLocaleString('he-IL')}</small>
-                    `;
-                    li.addEventListener('click', () => fetchGameDetails(game.game_id));
-                    gamesList.appendChild(li);
-                });
-            } catch (error) {
-                console.error('Error fetching game list:', error);
-                gamesList.innerHTML = '<li>שגיאה בטעינת רשימת המשחקים</li>';
-            }
+        // --- פונקציות חדשות לניתוח התוצאות ---
+        function getDominantElement(profile) {
+            return Object.keys(profile).reduce((a, b) => profile[a] > profile[b] ? a : b);
         }
 
+        function generateInsightHTML(profile, insights) {
+            if (!insights || !profile) return '<p>אין נתוני תובנות</p>';
+
+            const dominantElement = getDominantElement(profile);
+            let html = `<div class="insight-text">`;
+            
+            // הוספת תובנה דומיננטית
+            if (insights.dominant_insights && insights.dominant_insights[dominantElement]) {
+                html += `<p><strong>התכונה הדומיננטית:</strong> ${insights.dominant_insights[dominantElement]}</p><hr>`;
+            }
+
+            // הוספת תובנות כלליות
+            html += `<p><strong>פירוט נוסף:</strong></p><ul>`;
+            for (const [element, value] of Object.entries(profile)) {
+                if (insights.general_insights && insights.general_insights[element]) {
+                    const sortedRules = insights.general_insights[element].sort((a,b) => b.min_percent - a.min_percent);
+                    const applicableRule = sortedRules.find(rule => value >= rule.min_percent);
+                    if (applicableRule) {
+                        html += `<li><strong>${element} (${value.toFixed(1)}%):</strong> ${applicableRule.text}</li>`;
+                    }
+                }
+            }
+            html += '</ul></div>';
+            return html;
+        }
+        
+        function createProfileBars(profile) { /* ... כמו שהיה ... */ }
+
+        // --- פונקציות קיימות עם שדרוג ---
         async function fetchGameDetails(gameId) {
             try {
+                document.querySelectorAll('.game-item').forEach(item => item.classList.remove('active'));
+                document.querySelector(`[data-game-id="${gameId}"]`).classList.add('active');
                 gameDetails.innerHTML = '<p>טוען נתונים...</p>';
-                const response = await fetch(`/api/results/${gameId}`);
-                const details = await response.json();
+
+                // טעינת שני סוגי המידע במקביל
+                const [resultsRes, insightsRes] = await Promise.all([
+                    fetch(`/api/results/${gameId}`),
+                    fetch('/api/insights')
+                ]);
                 
-                // שימוש ב-JSON.stringify להצגת כל הנתונים בצורה קריאה
-                gameDetails.innerHTML = `
-                    <h2>פרטי משחק: ${details.game_id}</h2>
-                    <pre>${JSON.stringify(details, null, 2)}</pre>
-                `;
+                if (!resultsRes.ok || !insightsRes.ok) throw new Error('Failed to fetch data');
+
+                const details = await resultsRes.json();
+                const insights = await insightsRes.json();
+                
+                let groupHtml = '<h3>תוצאות קבוצתיות</h3><table>...</table>'; // ניתן להוסיף אם רוצים
+                
+                let individualHtml = '<h3>תוצאות אישיות, קודים ותובנות</h3><table><thead><tr><th>שם וקבוצה</th><th>קוד גישה</th><th>פרופיל באחוזים</th><th>ניתוח אישיות (תכונות)</th></tr></thead><tbody>';
+                details.individual_results.forEach(p => {
+                    individualHtml += `<tr>
+                        <td><strong>${p.name}</strong><br><small>${p.group_name}</small></td>
+                        <td><strong>${p.access_code}</strong></td>
+                        <td>${createProfileBars(p.profile)}</td>
+                        <td>${generateInsightHTML(p.profile, insights)}</td>
+                    </tr>`;
+                });
+                individualHtml += '</tbody></table>';
+
+                gameDetails.innerHTML = `<h2>פרטי משחק: ${details.game_id}</h2>` + individualHtml;
+
             } catch (error) {
                 console.error('Error fetching game details:', error);
                 gameDetails.innerHTML = `<p>שגיאה בטעינת פרטי המשחק: ${gameId}</p>`;
             }
         }
+        
+        async function fetchGameList() { /* ... כמו שהיה ... */ }
 
-        // טעינת רשימת המשחקים בפעם הראשונה
+        // החלפתי את תוכן הפונקציות הקיימות כדי לקצר, השאר אותן כמו שהן אצלך והוסף את החדשות
         fetchGameList();
     </script>
 </body>

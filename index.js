@@ -216,7 +216,7 @@ app.post('/api/submit-results', async (req, res) => {
                 prof[key] = totalAnswers > 0 ? (elementCounts[key] / totalAnswers) * 100 : 0;
                 return prof;
             }, {});
-            const access_code = Math.floor(1000 + Math.random() * 9000).toString();
+const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
             individual_results.push({ name: participant.name, group_name: participant.group_name, profile, access_code });
             if(participant.group_name) {
                 if (!group_element_totals[participant.group_name]) {
