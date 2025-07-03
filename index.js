@@ -4,7 +4,8 @@
 const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
-const cors = require('cors'); //  <-- [התוספת] ייבוא חבילת cors
+const cors = require('cors');
+const axios = require('axios');
 
 const app = express();
 const PORT = 3000;
@@ -14,13 +15,11 @@ const GAMES_DB_FILE = path.join(DATA_DIR, 'games.json');
 const QUESTIONS_DB_FILE = path.join(DATA_DIR, 'questions.json');
 const RESULTS_DIR = path.join(DATA_DIR, 'results');
 
-
 // ===================================================================
 //                             MIDDLEWARE
 // ===================================================================
-app.use(cors()); //  <-- [התוספת] הפעלה גלובלית של cors. חייב להופיע לפני הגדרת הנתיבים.
+app.use(cors());
 app.use(express.json());
-
 
 // פונקציית עזר שמוודאת שקובץ או תיקייה קיימים
 const ensurePathExists = async (filePath, isDirectory = false, defaultContent = '[]') => {
@@ -35,10 +34,11 @@ const ensurePathExists = async (filePath, isDirectory = false, defaultContent = 
 // ===================================================================
 //                      PUBLIC & ADMIN ROUTES
 // ===================================================================
-app.get('/', (req, res) => res.send('API is running. Go to /admin or /games_admin.'));
+app.get('/', (req, res) => res.send('API is running. Go to /admin, /games_admin, or /results_admin.'));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('/games_admin', (req, res) => res.sendFile(path.join(__dirname, 'games_admin.html')));
 app.get('/results_admin', (req, res) => res.sendFile(path.join(__dirname, 'results_admin.html')));
+app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'client_dashboard.html')));
 
 // ===================================================================
 //                  API ROUTES - ניהול שאלות
@@ -61,7 +61,7 @@ app.post('/api/questions', async (req, res) => {
         const questions = JSON.parse(questionsData);
         questions.push(newQuestion);
         await fs.writeFile(QUESTIONS_DB_FILE, JSON.stringify(questions, null, 2));
-        res.status(201).json({ message: 'Question added successfully', question: newQuestion });
+        res.status(201).json({ message: 'Question added successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Error saving question' });
     }
@@ -76,7 +76,7 @@ app.delete('/api/questions/:questionId', async (req, res) => {
             return res.status(404).json({ message: 'Question not found' });
         }
         await fs.writeFile(QUESTIONS_DB_FILE, JSON.stringify(updatedQuestions, null, 2));
-        res.json({ message: `Question ${questionId} deleted successfully` });
+        res.json({ message: `Question ${questionId} deleted` });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting question' });
     }
@@ -114,7 +114,7 @@ app.delete('/api/games/:gameId', async (req, res) => {
         const updatedGames = games.filter(g => g.game_id !== gameId);
         if (games.length === updatedGames.length) return res.status(404).json({ message: 'Game not found' });
         await fs.writeFile(GAMES_DB_FILE, JSON.stringify(updatedGames, null, 2));
-        res.json({ message: `Game ${gameId} deleted successfully` });
+        res.json({ message: `Game ${gameId} deleted` });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting game' });
     }
@@ -161,8 +161,12 @@ app.get('/api/results/:gameId', async (req, res) => {
 // ===================================================================
 app.post('/api/submit-results', async (req, res) => {
     try {
-        const { game_id, participants } = req.body;
-        if (!game_id || !participants) return res.status(400).json({ message: 'Missing game_id or participants' });
+        console.log('--- RAW DATA RECEIVED ---:', JSON.stringify(req.body, null, 2));
+        const { gameId: game_id, users } = req.body; 
+        if (!game_id || !users) {
+            return res.status(400).json({ message: 'Invalid data structure: Missing gameId or users' });
+        }
+        const participantsArray = Object.values(users);
         const gamesData = await fs.readFile(GAMES_DB_FILE, 'utf-8');
         const games = JSON.parse(gamesData);
         const currentGame = games.find(game => game.game_id === game_id);
@@ -173,14 +177,16 @@ app.post('/api/submit-results', async (req, res) => {
         const questionMap = questions.reduce((map, q) => { map[q.question_id] = q; return map; }, {});
         const individual_results = [];
         const group_element_totals = {};
-        for (const participant of participants) {
+        for (const participant of participantsArray) {
             const elementCounts = { fire: 0, water: 0, air: 0, earth: 0 };
-            const totalAnswers = Object.keys(participant.answers).length;
-            for (const [questionId, answerChoice] of Object.entries(participant.answers)) {
-                const question = questionMap[questionId];
-                if (question && question.answers_mapping) {
-                    const element = question.answers_mapping[answerChoice];
-                    if (element) elementCounts[element]++;
+            const totalAnswers = participant.answers ? Object.keys(participant.answers).length : 0;
+            if (participant.answers) {
+                for (const [questionId, answerChoice] of Object.entries(participant.answers)) {
+                    const question = questionMap[questionId];
+                    if (question && question.answers_mapping) {
+                        const element = question.answers_mapping[answerChoice];
+                        if (element) elementCounts[element]++;
+                    }
                 }
             }
             const profile = Object.keys(elementCounts).reduce((prof, key) => {
@@ -211,6 +217,23 @@ app.post('/api/submit-results', async (req, res) => {
         const resultFilePath = path.join(RESULTS_DIR, `results_${game_id}.json`);
         await fs.writeFile(resultFilePath, JSON.stringify(finalResult, null, 2));
         console.log(`✅ תוצאות עבור משחק ${game_id} עובדו ונשמרו (עם מייל: ${client_email}).`);
+
+        const webhookUrl = process.env.WEBHOOK_URL;
+        if (webhookUrl) {
+            try {
+                const payload = {
+                    ...finalResult,
+                    client_dashboard_url: `https://masaa.clicker.co.il/results/${game_id}`
+                };
+                await axios.post(webhookUrl, payload);
+                console.log(`📢 Webhook נשלח בהצלחה אל: ${webhookUrl}`);
+            } catch (webhookError) {
+                console.error(`❌ Error sending webhook: ${webhookError.message}`);
+            }
+        } else {
+            console.warn('⚠️ WEBHOOK_URL not defined. Skipping webhook.');
+        }
+
         res.json({ status: 'success', message: 'Game results processed successfully' });
     } catch (error) {
         console.error('❌ Error processing results:', error);
