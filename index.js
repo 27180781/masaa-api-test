@@ -22,6 +22,7 @@ const RESULTS_DIR = path.join(DATA_DIR, 'results');
 app.use(cors());
 app.use(express.json());
 
+// פונקציית עזר שמוודאת שקובץ או תיקייה קיימים
 const ensurePathExists = async (filePath, isDirectory = false, defaultContent = '[]') => {
   try {
     await fs.access(filePath);
@@ -51,7 +52,11 @@ app.get('/api/questions', async (req, res) => {
     try {
         const data = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
         res.json(JSON.parse(data));
-    } catch (e) { if (e.code === 'ENOENT') return res.json([]); res.status(500).json({e}); }
+    } catch (e) {
+        if (e.code === 'ENOENT') return res.json([]);
+        console.error('❌ Error reading questions file:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 app.post('/api/questions', async (req, res) => {
     try {
@@ -60,7 +65,10 @@ app.post('/api/questions', async (req, res) => {
         questions.push(req.body);
         await fs.writeFile(QUESTIONS_DB_FILE, JSON.stringify(questions, null, 2));
         res.status(201).json({ message: 'Question added' });
-    } catch (e) { res.status(500).json({e}); }
+    } catch (e) {
+        console.error('❌ Error saving question:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 app.delete('/api/questions/:questionId', async (req, res) => {
     try {
@@ -70,7 +78,10 @@ app.delete('/api/questions/:questionId', async (req, res) => {
         const newQuestions = questions.filter(q => q.question_id !== questionId);
         await fs.writeFile(QUESTIONS_DB_FILE, JSON.stringify(newQuestions, null, 2));
         res.json({ message: 'Question deleted' });
-    } catch (e) { res.status(500).json({e}); }
+    } catch (e) {
+        console.error('❌ Error deleting question:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 
 // --- ניהול משחקים ---
@@ -78,16 +89,25 @@ app.get('/api/games', async (req, res) => {
     try {
         const data = await fs.readFile(GAMES_DB_FILE, 'utf-8');
         res.json(JSON.parse(data));
-    } catch (e) { if (e.code === 'ENOENT') return res.json([]); res.status(500).json({e}); }
+    } catch (e) {
+        if (e.code === 'ENOENT') return res.json([]);
+        console.error('❌ Error reading games file:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 app.post('/api/games', async (req, res) => {
     try {
+        const { game_id, client_email } = req.body;
+        if (!game_id || !client_email) return res.status(400).json({ message: 'game_id and client_email are required' });
         const data = await fs.readFile(GAMES_DB_FILE, 'utf-8');
         const games = JSON.parse(data);
-        games.push(req.body);
+        games.push({ game_id, client_email, createdAt: new Date() });
         await fs.writeFile(GAMES_DB_FILE, JSON.stringify(games, null, 2));
         res.status(201).json({ message: 'Game saved' });
-    } catch (e) { res.status(500).json({e}); }
+    } catch (e) {
+        console.error('❌ Error saving game:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 app.delete('/api/games/:gameId', async (req, res) => {
     try {
@@ -97,7 +117,10 @@ app.delete('/api/games/:gameId', async (req, res) => {
         const newGames = games.filter(g => g.game_id !== gameId);
         await fs.writeFile(GAMES_DB_FILE, JSON.stringify(newGames, null, 2));
         res.json({ message: 'Game deleted' });
-    } catch (e) { res.status(500).json({e}); }
+    } catch (e) {
+        console.error('❌ Error deleting game:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 
 // --- ניהול תובנות ---
@@ -105,33 +128,52 @@ app.get('/api/insights', async (req, res) => {
     try {
         const data = await fs.readFile(INSIGHTS_DB_FILE, 'utf-8');
         res.json(JSON.parse(data));
-    } catch (e) { if (e.code === 'ENOENT') return res.json({}); res.status(500).json({e}); }
+    } catch (e) {
+        if (e.code === 'ENOENT') return res.json({});
+        console.error('❌ Error reading insights file:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 app.post('/api/insights', async (req, res) => {
     try {
         await fs.writeFile(INSIGHTS_DB_FILE, JSON.stringify(req.body, null, 2));
         res.json({ message: 'Insights saved' });
-    } catch (e) { res.status(500).json({e}); }
+    } catch (e) {
+        console.error('❌ Error saving insights:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 
 // --- צפייה בתוצאות (אדמין) ---
 app.get('/api/results', async (req, res) => {
     try {
+        await ensurePathExists(RESULTS_DIR, true);
         const files = await fs.readdir(RESULTS_DIR);
         const summaries = await Promise.all(files.map(async file => {
-            const content = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
-            const data = JSON.parse(content);
-            return { game_id: data.game_id, client_email: data.client_email, processed_at: data.processed_at };
+            if (file.startsWith('results_') && file.endsWith('.json')) {
+                const content = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
+                const data = JSON.parse(content);
+                return { game_id: data.game_id, client_email: data.client_email, processed_at: data.processed_at };
+            }
+            return null;
         }));
-        res.json(summaries.sort((a,b) => new Date(b.processed_at) - new Date(a.processed_at)));
-    } catch (e) { if (e.code === 'ENOENT') return res.json([]); res.status(500).json({e}); }
+        res.json(summaries.filter(Boolean).sort((a, b) => new Date(b.processed_at) - new Date(a.processed_at)));
+    } catch (e) {
+        if (e.code === 'ENOENT') return res.json([]);
+        console.error('❌ Error listing results:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 app.get('/api/results/:gameId', async (req, res) => {
     try {
         const { gameId } = req.params;
         const content = await fs.readFile(path.join(RESULTS_DIR, `results_${gameId}.json`), 'utf-8');
         res.json(JSON.parse(content));
-    } catch (e) { if (e.code === 'ENOENT') return res.status(404).json({ message: 'Not found' }); res.status(500).json({e}); }
+    } catch (e) {
+        if (e.code === 'ENOENT') return res.status(404).json({ message: 'Not found' });
+        console.error('❌ Error reading result file:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 
 // --- שליפת תוצאה למשתמש קצה ---
@@ -140,41 +182,50 @@ app.get('/api/my-result/by-code/:accessCode', async (req, res) => {
         const { accessCode } = req.params;
         const files = await fs.readdir(RESULTS_DIR);
         for (const file of files) {
-            const content = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
-            const data = JSON.parse(content);
-            const user = data.individual_results.find(u => u.access_code === accessCode);
-            if (user) return res.json(user);
+            if (file.startsWith('results_') && file.endsWith('.json')) {
+                const content = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
+                const data = JSON.parse(content);
+                const user = data.individual_results.find(u => u.access_code === accessCode);
+                if (user) return res.json(user);
+            }
         }
         res.status(404).json({ message: 'Result not found' });
-    } catch (e) { res.status(500).json({e}); }
+    } catch (e) {
+        console.error('❌ Error searching by code:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 app.get('/api/my-result/by-phone/:phone', async (req, res) => {
     try {
         const { phone } = req.params;
         const files = await fs.readdir(RESULTS_DIR);
         for (const file of files) {
-            const content = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
-            const data = JSON.parse(content);
-            const user = data.individual_results.find(u => u.id === phone);
-            if (user) return res.json(user);
+            if (file.startsWith('results_') && file.endsWith('.json')) {
+                const content = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
+                const data = JSON.parse(content);
+                const user = data.individual_results.find(u => u.id === phone);
+                if (user) return res.json(user);
+            }
         }
         res.status(404).json({ message: 'Result not found' });
-    } catch (e) { res.status(500).json({e}); }
+    } catch (e) {
+        console.error('❌ Error searching by phone:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 
 // --- עיבוד תוצאות ---
 app.post('/api/submit-results', async (req, res) => {
     try {
         console.log('--- RAW DATA RECEIVED ---:', JSON.stringify(req.body, null, 2));
-        const { gameId: game_id, users } = req.body; 
+        const { gameId: game_id, users } = req.body;
         if (!game_id || !users) return res.status(400).json({ message: 'Invalid data structure' });
-        
-        const participantsArray = Object.values(users);
+
         const gamesData = await fs.readFile(GAMES_DB_FILE, 'utf-8');
         const games = JSON.parse(gamesData);
         const currentGame = games.find(game => game.game_id === game_id);
         const client_email = currentGame ? currentGame.client_email : null;
-        
+
         const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
         const questions = JSON.parse(questionsData);
         const questionMap = questions.reduce((map, q) => { map[q.question_id] = q; return map; }, {});
@@ -200,7 +251,8 @@ app.post('/api/submit-results', async (req, res) => {
             }, {});
             const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
             individual_results.push({ id: userId, name: participantData.name, group_name: participantData.group_name, profile, access_code });
-            if(participantData.group_name) {
+
+            if (participantData.group_name) {
                 if (!group_element_totals[participantData.group_name]) {
                     group_element_totals[participantData.group_name] = { counts: { fire: 0, water: 0, air: 0, earth: 0 }, participant_count: 0 };
                 }
@@ -208,9 +260,9 @@ app.post('/api/submit-results', async (req, res) => {
                 group_element_totals[participantData.group_name].participant_count++;
             }
         }
-        
+
         const group_results = {};
-        for(const [groupName, data] of Object.entries(group_element_totals)) {
+        for (const [groupName, data] of Object.entries(group_element_totals)) {
             group_results[groupName] = {
                 profile: Object.keys(data.counts).reduce((prof, key) => {
                     prof[key] = data.counts[key] / data.participant_count;
@@ -222,7 +274,7 @@ app.post('/api/submit-results', async (req, res) => {
         const finalResult = { game_id, client_email, processed_at: new Date().toISOString(), individual_results, group_results };
         const resultFilePath = path.join(RESULTS_DIR, `results_${game_id}.json`);
         await fs.writeFile(resultFilePath, JSON.stringify(finalResult, null, 2));
-        console.log(`✅ תוצאות עבור משחק ${game_id} עובדו ונשמרו.`);
+        console.log(`✅ תוצאות עבור משחק ${game_id} עובדו ונשמרו (עם מייל: ${client_email}).`);
 
         const webhookUrl = process.env.WEBHOOK_URL;
         if (webhookUrl) {
@@ -237,7 +289,7 @@ app.post('/api/submit-results', async (req, res) => {
                 console.error(`❌ Error sending webhook: ${webhookError.message}`);
             }
         } else {
-            console.warn('⚠️ WEBHOOK_URL not defined. Skipping webhook.');
+            if (game_id) console.warn('⚠️ WEBHOOK_URL not defined. Skipping webhook.');
         }
 
         res.json({ status: 'success', message: 'Game results processed successfully' });
