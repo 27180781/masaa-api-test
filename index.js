@@ -175,43 +175,87 @@ app.get('/api/results/:gameId', async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
+// ===================================================================
+//                  [חדש] פונקציית עזר לעיבוד תובנות
+// ===================================================================
+function processInsightsForProfile(profile, insights) {
+    if (!insights || !profile) return null;
 
-// --- שליפת תוצאה למשתמש קצה ---
+    const getDominantElement = (p) => Object.keys(p).reduce((a, b) => p[a] > p[b] ? a : b);
+    const dominantElement = getDominantElement(profile);
+
+    const dominant_insight = (insights.dominant_insights && insights.dominant_insights[dominantElement]) 
+        ? insights.dominant_insights[dominantElement] 
+        : "לא נמצאה תובנה דומיננטית.";
+
+    const general_insights_text = [];
+    for (const [element, value] of Object.entries(profile)) {
+        if (insights.general_insights && insights.general_insights[element]) {
+            const sortedRules = insights.general_insights[element].sort((a,b) => b.min_percent - a.min_percent);
+            const applicableRule = sortedRules.find(rule => value >= rule.min_percent);
+            if (applicableRule) {
+                general_insights_text.push(`${element}: ${applicableRule.text}`);
+            }
+        }
+    }
+
+    return {
+        dominant_insight,
+        general_insights: general_insights_text,
+        full_text: `התכונה הדומיננטית שלך היא: ${dominant_insight}. פירוט נוסף: ${general_insights_text.join('. ')}.`
+    };
+}
+// ===================================================================
+//          [שדרוג] API ROUTES - שליפת תוצאה למשתמש קצה
+// ===================================================================
+
+async function findUserResult(searchKey, searchValue) {
+    const files = await fs.readdir(RESULTS_DIR);
+    for (const file of files) {
+        if (file.startsWith('results_') && file.endsWith('.json')) {
+            const content = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
+            const data = JSON.parse(content);
+            const user = data.individual_results.find(u => u[searchKey] === searchValue);
+            if (user) return user;
+        }
+    }
+    return null;
+}
+
 app.get('/api/my-result/by-code/:accessCode', async (req, res) => {
-    try {
-        const { accessCode } = req.params;
-        const files = await fs.readdir(RESULTS_DIR);
-        for (const file of files) {
-            if (file.startsWith('results_') && file.endsWith('.json')) {
-                const content = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
-                const data = JSON.parse(content);
-                const user = data.individual_results.find(u => u.access_code === accessCode);
-                if (user) return res.json(user);
-            }
-        }
-        res.status(404).json({ message: 'Result not found' });
-    } catch (e) {
-        console.error('❌ Error searching by code:', e);
-        res.status(500).json({ message: 'Internal Server Error' });
-    }
+    try {
+        const userProfile = await findUserResult('access_code', req.params.accessCode);
+        if (!userProfile) return res.status(404).json({ message: 'Result not found' });
+
+        const insightsData = await fs.readFile(INSIGHTS_DB_FILE, 'utf-8');
+        const insights = JSON.parse(insightsData);
+        
+        const processedInsights = processInsightsForProfile(userProfile.profile, insights);
+        
+        res.json({ ...userProfile, insights: processedInsights });
+
+    } catch (e) {
+        console.error('❌ Error searching by code:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
+
 app.get('/api/my-result/by-phone/:phone', async (req, res) => {
-    try {
-        const { phone } = req.params;
-        const files = await fs.readdir(RESULTS_DIR);
-        for (const file of files) {
-            if (file.startsWith('results_') && file.endsWith('.json')) {
-                const content = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
-                const data = JSON.parse(content);
-                const user = data.individual_results.find(u => u.id === phone);
-                if (user) return res.json(user);
-            }
-        }
-        res.status(404).json({ message: 'Result not found' });
-    } catch (e) {
-        console.error('❌ Error searching by phone:', e);
-        res.status(500).json({ message: 'Internal Server Error' });
-    }
+    try {
+        const userProfile = await findUserResult('id', req.params.phone);
+        if (!userProfile) return res.status(404).json({ message: 'Result not found' });
+        
+        const insightsData = await fs.readFile(INSIGHTS_DB_FILE, 'utf-8');
+        const insights = JSON.parse(insightsData);
+        
+        const processedInsights = processInsightsForProfile(userProfile.profile, insights);
+
+        res.json({ ...userProfile, insights: processedInsights });
+
+    } catch (e) {
+        console.error('❌ Error searching by phone:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 
 // --- עיבוד תוצאות ---
