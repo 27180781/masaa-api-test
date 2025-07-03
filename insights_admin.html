@@ -6,10 +6,17 @@
     <title>ניהול תובנות</title>
     <style>
         body { font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; color: #333; }
-        h1, h2 { color: #1d5b85; }
+        h1, h2, h3 { color: #1d5b85; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
         textarea { width: 98%; min-height: 80px; padding: 8px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 3px; }
         .form-container { background-color: #f7f8fb; padding: 20px; border-radius: 5px; }
-        button { background-color: #27ae60; color: white; padding: 12px 25px; border: none; border-radius: 5px; font-size: 18px; cursor: pointer; }
+        .insight-section { margin-bottom: 25px; }
+        .general-insight-rule { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .general-insight-rule input { padding: 8px; border: 1px solid #ccc; border-radius: 3px; }
+        .general-insight-rule input[type="number"] { width: 80px; }
+        .general-insight-rule input[type="text"] { flex-grow: 1; }
+        .delete-rule-btn { background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; }
+        .add-rule-btn { background-color: #3498db; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; margin-top: 5px; }
+        #saveButton { background-color: #27ae60; color: white; padding: 12px 25px; border: none; border-radius: 5px; font-size: 18px; cursor: pointer; margin-top: 20px; }
         nav a { margin-left: 20px; font-size: 18px; }
     </style>
 </head>
@@ -21,57 +28,122 @@
         <a href="/insights_admin">ניהול תובנות</a>
     </nav>
     <h1>ניהול תובנות ותוצאות</h1>
+
     <div id="insightsForm" class="form-container">
-        <h2>תובנות על יסוד דומיננטי</h2>
-        <label for="dominant_fire">אש:</label>
-        <textarea id="dominant_fire"></textarea>
-        <label for="dominant_water">מים:</label>
-        <textarea id="dominant_water"></textarea>
-        <label for="dominant_air">אוויר:</label>
-        <textarea id="dominant_air"></textarea>
-        <label for="dominant_earth">אדמה:</label>
-        <textarea id="dominant_earth"></textarea>
+        <div class="insight-section">
+            <h2>תובנות על יסוד דומיננטי</h2>
+            <label for="dominant_fire">אש:</label> <textarea id="dominant_fire"></textarea>
+            <label for="dominant_water">מים:</label> <textarea id="dominant_water"></textarea>
+            <label for="dominant_air">אוויר:</label> <textarea id="dominant_air"></textarea>
+            <label for="dominant_earth">אדמה:</label> <textarea id="dominant_earth"></textarea>
+        </div>
+
+        <div class="insight-section">
+            <h2>תובנות כלליות (לפי אחוזים)</h2>
+            <p>הגדר תובנות קצרות לכל יסוד לפי אחוז מינימלי. המערכת תציג את התובנה מהסף הגבוה ביותר שהמשתמש עבר.</p>
+            
+            <h3>אש (Fire)</h3>
+            <div id="general_insights_fire"></div>
+            <button type="button" class="add-rule-btn" data-element="fire">הוסף חוק לאש</button>
+
+            <h3>מים (Water)</h3>
+            <div id="general_insights_water"></div>
+            <button type="button" class="add-rule-btn" data-element="water">הוסף חוק למים</button>
+
+            <h3>אוויר (Air)</h3>
+            <div id="general_insights_air"></div>
+            <button type="button" class="add-rule-btn" data-element="air">הוסף חוק לאוויר</button>
+
+            <h3>אדמה (Earth)</h3>
+            <div id="general_insights_earth"></div>
+            <button type="button" class="add-rule-btn" data-element="earth">הוסף חוק לאדמה</button>
+        </div>
         
-        <h2>תובנות כלליות (לפי אחוזים)</h2>
-        <p>כאן תוכל להגדיר תובנות קצרות לכל יסוד לפי טווחי אחוזים. המערכת תבחר את התובנה הראשונה שהמשתמש עומד בסף המינימלי שלה (מהגבוה לנמוך).</p>
-        <button id="saveButton">שמור שינויים</button>
+        <button id="saveButton">שמור את כל השינויים</button>
     </div>
 
     <script>
         const form = document.getElementById('insightsForm');
         const saveButton = document.getElementById('saveButton');
-        const fields = {
-            dominant_fire: document.getElementById('dominant_fire'),
-            dominant_water: document.getElementById('dominant_water'),
-            dominant_air: document.getElementById('dominant_air'),
-            dominant_earth: document.getElementById('dominant_earth'),
-        };
 
+        // פונקציה ליצירת שורת חוק חדשה
+        function createRuleElement(rule = { min_percent: 10, text: '' }) {
+            const ruleDiv = document.createElement('div');
+            ruleDiv.className = 'general-insight-rule';
+            ruleDiv.innerHTML = `
+                <label>מעל:</label>
+                <input type="number" class="min-percent" value="${rule.min_percent}" step="1">
+                <label>% - הצג טקסט:</label>
+                <input type="text" class="insight-text" value="${rule.text}">
+                <button type="button" class="delete-rule-btn">מחק</button>
+            `;
+            ruleDiv.querySelector('.delete-rule-btn').onclick = () => ruleDiv.remove();
+            return ruleDiv;
+        }
+
+        // פונקציה לטעינת התובנות מהשרת
         async function loadInsights() {
             try {
                 const response = await fetch('/api/insights');
                 const data = await response.json();
-                fields.dominant_fire.value = data.dominant_insights.fire;
-                fields.dominant_water.value = data.dominant_insights.water;
-                fields.dominant_air.value = data.dominant_insights.air;
-                fields.dominant_earth.value = data.dominant_insights.earth;
-                // ניתן להרחיב כדי לטעון גם את התובנות הכלליות
+
+                // טעינת תובנות דומיננטיות
+                if (data.dominant_insights) {
+                    document.getElementById('dominant_fire').value = data.dominant_insights.fire || '';
+                    document.getElementById('dominant_water').value = data.dominant_insights.water || '';
+                    document.getElementById('dominant_air').value = data.dominant_insights.air || '';
+                    document.getElementById('dominant_earth').value = data.dominant_insights.earth || '';
+                }
+
+                // טעינת תובנות כלליות
+                if (data.general_insights) {
+                    for (const element in data.general_insights) {
+                        const container = document.getElementById(`general_insights_${element}`);
+                        container.innerHTML = ''; // נקה לפני טעינה
+                        const rules = data.general_insights[element].sort((a,b) => b.min_percent - a.min_percent);
+                        rules.forEach(rule => {
+                            container.appendChild(createRuleElement(rule));
+                        });
+                    }
+                }
             } catch (error) {
                 console.error('Error loading insights:', error);
             }
         }
 
+        // טיפול בכפתורי "הוסף חוק"
+        document.querySelectorAll('.add-rule-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const element = e.target.dataset.element;
+                const container = document.getElementById(`general_insights_${element}`);
+                container.appendChild(createRuleElement());
+            });
+        });
+
+        // טיפול בשמירת כל הנתונים
         saveButton.addEventListener('click', async () => {
-            // כרגע שומרים רק את התובנות הדומיננטיות, ניתן להרחיב בקלות
             const updatedData = {
                 dominant_insights: {
-                    fire: fields.dominant_fire.value,
-                    water: fields.dominant_water.value,
-                    air: fields.dominant_air.value,
-                    earth: fields.dominant_earth.value,
+                    fire: document.getElementById('dominant_fire').value,
+                    water: document.getElementById('dominant_water').value,
+                    air: document.getElementById('dominant_air').value,
+                    earth: document.getElementById('dominant_earth').value,
                 },
-                general_insights: {} // ניתן לאכלס משדות טופס נוספים
+                general_insights: {
+                    fire: [], water: [], air: [], earth: []
+                }
             };
+            
+            for (const element of ['fire', 'water', 'air', 'earth']) {
+                const container = document.getElementById(`general_insights_${element}`);
+                container.querySelectorAll('.general-insight-rule').forEach(ruleEl => {
+                    const min_percent = parseInt(ruleEl.querySelector('.min-percent').value, 10);
+                    const text = ruleEl.querySelector('.insight-text').value;
+                    if (text) {
+                        updatedData.general_insights[element].push({ min_percent, text });
+                    }
+                });
+            }
 
             try {
                 const response = await fetch('/api/insights', {
