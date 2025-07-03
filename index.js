@@ -15,6 +15,7 @@ const GAMES_DB_FILE = path.join(DATA_DIR, 'games.json');
 const QUESTIONS_DB_FILE = path.join(DATA_DIR, 'questions.json');
 const INSIGHTS_DB_FILE = path.join(DATA_DIR, 'insights.json');
 const RESULTS_DIR = path.join(DATA_DIR, 'results');
+const SETTINGS_DB_FILE = path.join(DATA_DIR, 'settings.json'); 
 
 // ===================================================================
 //                             MIDDLEWARE
@@ -35,8 +36,9 @@ const ensurePathExists = async (filePath, isDirectory = false, defaultContent = 
 // ===================================================================
 //                      PUBLIC & ADMIN ROUTES
 // ===================================================================
-app.get('/', (req, res) => res.send('API is running.'));
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
+app.get('/', (req, res) => res.redirect('/master_admin')); 
+app.get('/master_admin', (req, res) => res.sendFile(path.join(__dirname, 'master_admin.html')));
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html'))); 
 app.get('/games_admin', (req, res) => res.sendFile(path.join(__dirname, 'games_admin.html')));
 app.get('/results_admin', (req, res) => res.sendFile(path.join(__dirname, 'results_admin.html')));
 app.get('/insights_admin', (req, res) => res.sendFile(path.join(__dirname, 'insights_admin.html')));
@@ -46,7 +48,25 @@ app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'cli
 // ===================================================================
 //                  API ROUTES
 // ===================================================================
-
+// --- [חדש] ניהול הגדרות ---
+app.get('/api/settings', async (req, res) => {
+    try {
+        const settingsData = await fs.readFile(SETTINGS_DB_FILE, 'utf-8');
+        res.json(JSON.parse(settingsData));
+    } catch (e) {
+        if (e.code === 'ENOENT') {
+            // אם הקובץ לא קיים, החזר הגדרות ברירת מחדל
+            return res.json({ summary_webhook_url: '', participant_webhook_url: '' });
+        }
+        res.status(500).json({ message: 'Error reading settings' });
+    }
+});
+app.post('/api/settings', async (req, res) => {
+    try {
+        await fs.writeFile(SETTINGS_DB_FILE, JSON.stringify(req.body, null, 2));
+        res.json({ message: 'Settings saved successfully' });
+    } catch (e) { res.status(500).json({ message: 'Error saving settings' }); }
+});
 // --- ניהול שאלות ---
 app.get('/api/questions', async (req, res) => {
     try {
@@ -257,26 +277,23 @@ app.get('/api/my-result/by-phone/:phone', async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
-
-// --- עיבוד תוצאות ---
+// --- [שדרוג] עיבוד תוצאות ---
 app.post('/api/submit-results', async (req, res) => {
     try {
         console.log('--- RAW DATA RECEIVED ---:', JSON.stringify(req.body, null, 2));
         const { gameId: game_id, users } = req.body;
         if (!game_id || !users) return res.status(400).json({ message: 'Invalid data structure' });
 
+        // --- לוגיקת חישוב התוצאות (נשארת זהה) ---
         const gamesData = await fs.readFile(GAMES_DB_FILE, 'utf-8');
         const games = JSON.parse(gamesData);
         const currentGame = games.find(game => game.game_id === game_id);
         const client_email = currentGame ? currentGame.client_email : null;
-
         const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
         const questions = JSON.parse(questionsData);
         const questionMap = questions.reduce((map, q) => { map[q.question_id] = q; return map; }, {});
-
         const individual_results = [];
         const group_element_totals = {};
-
         for (const [userId, participantData] of Object.entries(users)) {
             const elementCounts = { fire: 0, water: 0, air: 0, earth: 0 };
             const totalAnswers = participantData.answers ? Object.keys(participantData.answers).length : 0;
@@ -295,7 +312,6 @@ app.post('/api/submit-results', async (req, res) => {
             }, {});
             const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
             individual_results.push({ id: userId, name: participantData.name, group_name: participantData.group_name, profile, access_code });
-
             if (participantData.group_name) {
                 if (!group_element_totals[participantData.group_name]) {
                     group_element_totals[participantData.group_name] = { counts: { fire: 0, water: 0, air: 0, earth: 0 }, participant_count: 0 };
@@ -304,7 +320,6 @@ app.post('/api/submit-results', async (req, res) => {
                 group_element_totals[participantData.group_name].participant_count++;
             }
         }
-
         const group_results = {};
         for (const [groupName, data] of Object.entries(group_element_totals)) {
             group_results[groupName] = {
@@ -315,25 +330,40 @@ app.post('/api/submit-results', async (req, res) => {
                 participant_count: data.participant_count
             };
         }
+        // --- סוף לוגיקת החישוב ---
+
         const finalResult = { game_id, client_email, processed_at: new Date().toISOString(), individual_results, group_results };
         const resultFilePath = path.join(RESULTS_DIR, `results_${game_id}.json`);
         await fs.writeFile(resultFilePath, JSON.stringify(finalResult, null, 2));
-        console.log(`✅ תוצאות עבור משחק ${game_id} עובדו ונשמרו (עם מייל: ${client_email}).`);
+        console.log(`✅ תוצאות עבור משחק ${game_id} עובדו ונשמרו.`);
 
-        const webhookUrl = process.env.WEBHOOK_URL;
-        if (webhookUrl) {
+        // --- שליחת Webhooks על בסיס קובץ הגדרות ---
+        let settings = {};
+        try {
+            const settingsData = await fs.readFile(SETTINGS_DB_FILE, 'utf-8');
+            settings = JSON.parse(settingsData);
+        } catch (e) {
+            console.warn('⚠️ Could not read settings file, skipping webhooks.');
+        }
+
+        // 1. Webhook סיכום למנהל
+        if (settings.summary_webhook_url) {
             try {
-                const payload = {
-                    ...finalResult,
-                    client_dashboard_url: `https://masaa.clicker.co.il/results/${game_id}`
-                };
-                await axios.post(webhookUrl, payload);
-                console.log(`📢 Webhook נשלח בהצלחה.`);
-            } catch (webhookError) {
-                console.error(`❌ Error sending webhook: ${webhookError.message}`);
+                const payload = { ...finalResult, client_dashboard_url: `https://masaa.clicker.co.il/results/${game_id}` };
+                await axios.post(settings.summary_webhook_url, payload);
+                console.log(`📢 Webhook סיכום נשלח בהצלחה`);
+            } catch (e) { console.error(`❌ Error sending summary webhook: ${e.message}`); }
+        }
+
+        // 2. Webhook לכל משתתף
+        if (settings.participant_webhook_url) {
+            for (const participantResult of individual_results) {
+                try {
+                    const payload = { ...participantResult, game_id, client_email };
+                    await axios.post(settings.participant_webhook_url, payload);
+                    console.log(`📢 Webhook נשלח עבור משתתף: ${participantResult.name}`);
+                } catch (e) { console.error(`❌ Error sending webhook for participant ${participantResult.name}: ${e.message}`); }
             }
-        } else {
-            if (game_id) console.warn('⚠️ WEBHOOK_URL not defined. Skipping webhook.');
         }
 
         res.json({ status: 'success', message: 'Game results processed successfully' });
@@ -342,17 +372,18 @@ app.post('/api/submit-results', async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
-
 // ===================================================================
 //                          SERVER STARTUP
 // ===================================================================
 app.listen(PORT, '0.0.0.0', async () => {
-  await ensurePathExists(DATA_DIR, true);
-  await ensurePathExists(GAMES_DB_FILE, false);
-  await ensurePathExists(QUESTIONS_DB_FILE, false);
-  await ensurePathExists(RESULTS_DIR, true);
-  await ensurePathExists(INSIGHTS_DB_FILE, false, JSON.stringify({ dominant_insights: {}, general_insights: {} }));
-  
-  console.log(`✅ Server is running on port ${PORT}`);
-  console.log(`🗄️ Persistent data directory is at: ${DATA_DIR}`);
+    await ensurePathExists(DATA_DIR, true);
+    await ensurePathExists(GAMES_DB_FILE, false);
+    await ensurePathExists(QUESTIONS_DB_FILE, false);
+    await ensurePathExists(RESULTS_DIR, true);
+    await ensurePathExists(INSIGHTS_DB_FILE, false, JSON.stringify({ dominant_insights: {}, general_insights: {} }));
+    await ensurePathExists(SETTINGS_DB_FILE, false, JSON.stringify({ summary_webhook_url: '', participant_webhook_url: '' }));
+
+    console.log(`✅ Server is running on port ${PORT}`);
+    console.log(`🗄️ Persistent data directory is at: ${DATA_DIR}`);
+    console.log(`🚀 MASTER ADMIN is available at http://localhost:${PORT}/master_admin`);
 });

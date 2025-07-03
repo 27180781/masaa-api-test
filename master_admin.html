@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>דשבורד ניהול ראשי</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 1200px; margin: auto; }
+        h1, h2, h3 { color: #1d5b85; }
+        .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        .card { background-color: #f7f8fb; border: 1px solid #ddd; border-radius: 8px; padding: 20px; }
+        .card a, .card button { display: block; background-color: #3295c7; color: white; text-decoration: none; padding: 12px; margin-bottom: 10px; border-radius: 5px; text-align: center; }
+        .card a:hover { background-color: #1d5b85; }
+        .card input { width: calc(100% - 22px); padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; }
+        pre { background-color: #2d2d2d; color: #f8f8f2; padding: 10px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; font-size: 0.9em; text-align: left; direction: ltr;}
+    </style>
+</head>
+<body>
+    <h1>דשבורד ניהול ראשי - מסע אל תוך עצמי</h1>
+    <div class="grid-container">
+        <div class="card">
+            <h2>כלי ניהול</h2>
+            <a href="/games_admin" target="_blank">ניהול משחקים (שיוך למייל)</a>
+            <a href="/admin" target="_blank">ניהול שאלות</a>
+            <a href="/insights_admin" target="_blank">ניהול תובנות</a>
+            <a href="/results_admin" target="_blank">צפייה בתוצאות (דשבורד)</a>
+        </div>
+        <div class="card">
+            <h2>הגדרות גלובליות</h2>
+            <form id="settingsForm">
+                <label for="summary_webhook_url">כתובת Webhook לסיכום משחק:</label>
+                <input type="url" id="summary_webhook_url" placeholder="https://... ">
+                <label for="participant_webhook_url">כתובת Webhook לכל משתתף:</label>
+                <input type="url" id="participant_webhook_url" placeholder="https://... ">
+                <button type="submit">שמור הגדרות</button>
+            </form>
+        </div>
+        <div class="card" style="grid-column: 1 / -1;">
+            <h2>תיעוד API וקישורים</h2>
+            <h3>דפים למשתמשים</h3>
+            <p>דף תוצאות ללקוח (מפעיל): <code>/results/<strong>[מזהה_המשחק]</strong></code></p>
+            <p>דף תוצאה אישי למשתתף: <code>/my-result</code> (המשתמש יזין קוד/טלפון)</p>
+            <h3>נקודות API</h3>
+            <p>שליחת תוצאות משחק:</p>
+            <pre>POST /api/submit-results</pre>
+            <p>שליפת תוצאה אישית לפי קוד:</p>
+            <pre>GET /api/my-result/by-code/<strong>[קוד_גישה]</strong></pre>
+             <p>שליפת תוצאה אישית לפי טלפון:</p>
+            <pre>GET /api/my-result/by-phone/<strong>[מספר_טלפון]</strong></pre>
+        </div>
+    </div>
+
+    <script>
+        const settingsForm = document.getElementById('settingsForm');
+        const summaryUrlInput = document.getElementById('summary_webhook_url');
+        const participantUrlInput = document.getElementById('participant_webhook_url');
+
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                const settings = await response.json();
+                summaryUrlInput.value = settings.summary_webhook_url || '';
+                participantUrlInput.value = settings.participant_webhook_url || '';
+            } catch (e) { console.error("Could not load settings", e); }
+        }
+
+        settingsForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const settings = {
+                summary_webhook_url: summaryUrlInput.value,
+                participant_webhook_url: participantUrlInput.value
+            };
+            try {
+                await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+                alert('ההגדרות נשמרו!');
+            } catch(e) {
+                alert('שגיאה בשמירת ההגדרות');
+            }
+        });
+
+        loadSettings();
+    </script>
+</body>
+</html>
