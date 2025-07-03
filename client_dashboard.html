@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>סיכום תוצאות המשחק</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; color: #333; }
+        h1, h2 { color: #1d5b85; border-bottom: 2px solid #1d5b85; padding-bottom: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+        th { background-color: #f2f2f2; }
+        .profile-bar { display: inline-block; height: 10px; background-color: #3295c7; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div id="gameData">
+        <h1>טוען נתונים, אנא המתן...</h1>
+    </div>
+
+    <script>
+        const gameDataContainer = document.getElementById('gameData');
+
+        // פונקציה ליצירת גרף עמודות פשוט
+        function createProfileBars(profile) {
+            let barsHtml = '<div style="font-size: 0.8em; width: 200px;">';
+            for (const [element, value] of Object.entries(profile)) {
+                const color = {fire: '#e74c3c', water: '#3498db', air: '#f1c40f', earth: '#2ecc71'}[element] || '#ccc';
+                barsHtml += `
+                    <div>
+                        <span style="display: inline-block; width: 50px;">${element}:</span>
+                        <div style="display: inline-block; width: 100px; background-color: #eee; border-radius: 5px;">
+                            <div class="profile-bar" style="width: ${value.toFixed(0)}%; background-color: ${color};"></div>
+                        </div>
+                        <span style="margin-right: 5px;">${value.toFixed(1)}%</span>
+                    </div>
+                `;
+            }
+            return barsHtml + '</div>';
+        }
+
+        async function fetchAndDisplayResults() {
+            try {
+                // לקיחת מזהה המשחק מכתובת ה-URL
+                const gameId = window.location.pathname.split('/').pop();
+                if (!gameId) {
+                    gameDataContainer.innerHTML = '<h1>שגיאה: לא נמצא מזהה משחק בכתובת.</h1>';
+                    return;
+                }
+
+                const response = await fetch(`/api/results/${gameId}`);
+                if (!response.ok) throw new Error('Game not found or server error');
+                const details = await response.json();
+                
+                let groupHtml = '<h2>תוצאות קבוצתיות</h2><table><thead><tr><th>קבוצה</th><th>משתתפים</th><th>פרופיל ממוצע</th></tr></thead><tbody>';
+                for (const [groupName, data] of Object.entries(details.group_results || {})) {
+                    groupHtml += `<tr><td>${groupName}</td><td>${data.participant_count}</td><td>${createProfileBars(data.profile)}</td></tr>`;
+                }
+                groupHtml += '</tbody></table>';
+
+                let individualHtml = '<h2>תוצאות אישיות וקודי גישה</h2><table><thead><tr><th>שם</th><th>קבוצה</th><th>קוד גישה</th><th>פרופיל אישי</th></tr></thead><tbody>';
+                (details.individual_results || []).forEach(p => {
+                    individualHtml += `<tr><td>${p.name}</td><td>${p.group_name}</td><td><strong>${p.access_code}</strong></td><td>${createProfileBars(p.profile)}</td></tr>`;
+                });
+                individualHtml += '</tbody></table>';
+
+                gameDataContainer.innerHTML = `<h1>סיכום תוצאות למשחק: ${details.game_id}</h1>` + groupHtml + individualHtml;
+
+            } catch (error) {
+                console.error('Error fetching game details:', error);
+                gameDataContainer.innerHTML = '<h1>שגיאה בטעינת תוצאות המשחק. אנא ודא שהמזהה בכתובת נכון ושהמשחק עובד.</h1>';
+            }
+        }
+
+        // קריאה לפונקציה כשהדף נטען
+        window.onload = fetchAndDisplayResults;
+    </script>
+</body>
+</html>
