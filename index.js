@@ -4,19 +4,25 @@
 const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
+const cors = require('cors'); //  <-- [התוספת] ייבוא חבילת cors
 
 const app = express();
 const PORT = 3000;
 
-// [שינוי מרכזי] הגדרת תיקיית נתונים מרכזית.
-// זוהי התיקייה שתוגדר כ-Persistent ב-CapRover.
 const DATA_DIR = '/app/data'; 
 const GAMES_DB_FILE = path.join(DATA_DIR, 'games.json');
 const QUESTIONS_DB_FILE = path.join(DATA_DIR, 'questions.json');
 const RESULTS_DIR = path.join(DATA_DIR, 'results');
 
+
+// ===================================================================
+//                             MIDDLEWARE
+// ===================================================================
+app.use(cors()); //  <-- [התוספת] הפעלה גלובלית של cors. חייב להופיע לפני הגדרת הנתיבים.
 app.use(express.json());
 
+
+// פונקציית עזר שמוודאת שקובץ או תיקייה קיימים
 const ensurePathExists = async (filePath, isDirectory = false, defaultContent = '[]') => {
   try {
     await fs.access(filePath);
@@ -35,12 +41,8 @@ app.get('/games_admin', (req, res) => res.sendFile(path.join(__dirname, 'games_a
 app.get('/results_admin', (req, res) => res.sendFile(path.join(__dirname, 'results_admin.html')));
 
 // ===================================================================
-//                  API ROUTES - כל הנתיבים הקיימים
+//                  API ROUTES - ניהול שאלות
 // ===================================================================
-// כאן נמצאים כל נתיבי ה-API שבנינו. אין צורך לשנות אותם,
-// הם ישתמשו אוטומטית במשתני הנתיבים החדשים שהגדרנו למעלה.
-
-// ניהול שאלות
 app.get('/api/questions', async (req, res) => {
     try {
         const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
@@ -80,7 +82,9 @@ app.delete('/api/questions/:questionId', async (req, res) => {
     }
 });
 
-// ניהול משחקים
+// ===================================================================
+//                  API ROUTES - ניהול משחקים
+// ===================================================================
 app.get('/api/games', async (req, res) => {
     try {
         const gamesData = await fs.readFile(GAMES_DB_FILE, 'utf-8');
@@ -116,7 +120,9 @@ app.delete('/api/games/:gameId', async (req, res) => {
     }
 });
 
-// צפייה בתוצאות
+// ===================================================================
+//                  API ROUTES - צפייה בתוצאות (לאדמין)
+// ===================================================================
 app.get('/api/results', async (req, res) => {
     try {
         await ensurePathExists(RESULTS_DIR, true);
@@ -150,7 +156,9 @@ app.get('/api/results/:gameId', async (req, res) => {
     }
 });
 
-// עיבוד תוצאות
+// ===================================================================
+//                  API ROUTE - עיבוד תוצאות
+// ===================================================================
 app.post('/api/submit-results', async (req, res) => {
     try {
         const { game_id, participants } = req.body;
@@ -214,7 +222,6 @@ app.post('/api/submit-results', async (req, res) => {
 //                          SERVER STARTUP
 // ===================================================================
 app.listen(PORT, '0.0.0.0', async () => {
-  // [שינוי] וידוא שכל הנתיבים והתיקיות בתוך תיקיית הנתונים קיימים
   await ensurePathExists(DATA_DIR, true);
   await ensurePathExists(GAMES_DB_FILE, false);
   await ensurePathExists(QUESTIONS_DB_FILE, false);
