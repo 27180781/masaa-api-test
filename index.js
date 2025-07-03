@@ -142,6 +142,19 @@ app.delete('/api/games/:gameId', async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
+// ===================================================================
+//                  [חדש וזמני] API לצורכי דיבאגינג
+// ===================================================================
+app.get('/api/debug/view-file/games', async (req, res) => {
+    try {
+        const fileContent = await fs.readFile(GAMES_DB_FILE, 'utf-8');
+        // הגדרת כותרת כדי להבטיח שהעברית תוצג כראוי בדפדפן
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.send(fileContent);
+    } catch (error) {
+        res.status(500).json({ error: "Could not read games.json file", details: error.message });
+    }
+});
 
 // --- ניהול תובנות ---
 app.get('/api/insights', async (req, res) => {
