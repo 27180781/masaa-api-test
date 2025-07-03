@@ -13,8 +13,8 @@ const PORT = 3000;
 const DATA_DIR = '/app/data'; 
 const GAMES_DB_FILE = path.join(DATA_DIR, 'games.json');
 const QUESTIONS_DB_FILE = path.join(DATA_DIR, 'questions.json');
-const RESULTS_DIR = path.join(DATA_DIR, 'results');
 const INSIGHTS_DB_FILE = path.join(DATA_DIR, 'insights.json');
+const RESULTS_DIR = path.join(DATA_DIR, 'results');
 
 // ===================================================================
 //                             MIDDLEWARE
@@ -22,7 +22,6 @@ const INSIGHTS_DB_FILE = path.join(DATA_DIR, 'insights.json');
 app.use(cors());
 app.use(express.json());
 
-// פונקציית עזר שמוודאת שקובץ או תיקייה קיימים
 const ensurePathExists = async (filePath, isDirectory = false, defaultContent = '[]') => {
   try {
     await fs.access(filePath);
@@ -35,179 +34,162 @@ const ensurePathExists = async (filePath, isDirectory = false, defaultContent = 
 // ===================================================================
 //                      PUBLIC & ADMIN ROUTES
 // ===================================================================
-app.get('/', (req, res) => res.send('API is running. Go to /admin, /games_admin, or /results_admin.'));
+app.get('/', (req, res) => res.send('API is running.'));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('/games_admin', (req, res) => res.sendFile(path.join(__dirname, 'games_admin.html')));
 app.get('/results_admin', (req, res) => res.sendFile(path.join(__dirname, 'results_admin.html')));
-app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'client_dashboard.html')));
 app.get('/insights_admin', (req, res) => res.sendFile(path.join(__dirname, 'insights_admin.html')));
+app.get('/my-result', (req, res) => res.sendFile(path.join(__dirname, 'my_result.html')));
+app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'client_dashboard.html')));
 
 // ===================================================================
-//                  API ROUTES - ניהול שאלות
+//                  API ROUTES
 // ===================================================================
+
+// --- ניהול שאלות ---
 app.get('/api/questions', async (req, res) => {
     try {
-        const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
-        res.json(JSON.parse(questionsData));
-    } catch (error) {
-        res.status(500).json({ message: 'Error reading questions file' });
-    }
+        const data = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
+        res.json(JSON.parse(data));
+    } catch (e) { if (e.code === 'ENOENT') return res.json([]); res.status(500).json({e}); }
 });
 app.post('/api/questions', async (req, res) => {
     try {
-        const newQuestion = req.body;
-        if (!newQuestion.question_id || !newQuestion.question_text || !newQuestion.answers_mapping) {
-            return res.status(400).json({ message: 'Invalid question format' });
-        }
-        const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
-        const questions = JSON.parse(questionsData);
-        questions.push(newQuestion);
+        const data = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
+        const questions = JSON.parse(data);
+        questions.push(req.body);
         await fs.writeFile(QUESTIONS_DB_FILE, JSON.stringify(questions, null, 2));
-        res.status(201).json({ message: 'Question added successfully' });
-    } catch (error) {
-        res.status(500).json({ message: 'Error saving question' });
-    }
+        res.status(201).json({ message: 'Question added' });
+    } catch (e) { res.status(500).json({e}); }
 });
 app.delete('/api/questions/:questionId', async (req, res) => {
     try {
         const { questionId } = req.params;
-        const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
-        let questions = JSON.parse(questionsData);
-        const updatedQuestions = questions.filter(q => q.question_id !== questionId);
-        if (questions.length === updatedQuestions.length) {
-            return res.status(404).json({ message: 'Question not found' });
-        }
-        await fs.writeFile(QUESTIONS_DB_FILE, JSON.stringify(updatedQuestions, null, 2));
-        res.json({ message: `Question ${questionId} deleted` });
-    } catch (error) {
-        res.status(500).json({ message: 'Error deleting question' });
-    }
+        const data = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
+        let questions = JSON.parse(data);
+        const newQuestions = questions.filter(q => q.question_id !== questionId);
+        await fs.writeFile(QUESTIONS_DB_FILE, JSON.stringify(newQuestions, null, 2));
+        res.json({ message: 'Question deleted' });
+    } catch (e) { res.status(500).json({e}); }
 });
 
-// ===================================================================
-//                  API ROUTES - ניהול משחקים
-// ===================================================================
+// --- ניהול משחקים ---
 app.get('/api/games', async (req, res) => {
     try {
-        const gamesData = await fs.readFile(GAMES_DB_FILE, 'utf-8');
-        res.json(JSON.parse(gamesData));
-    } catch (error) {
-        res.status(500).json({ message: 'Error reading games file' });
-    }
+        const data = await fs.readFile(GAMES_DB_FILE, 'utf-8');
+        res.json(JSON.parse(data));
+    } catch (e) { if (e.code === 'ENOENT') return res.json([]); res.status(500).json({e}); }
 });
 app.post('/api/games', async (req, res) => {
     try {
-        const { game_id, client_email } = req.body;
-        if (!game_id || !client_email) return res.status(400).json({ message: 'game_id and client_email are required' });
-        const gamesData = await fs.readFile(GAMES_DB_FILE, 'utf-8');
-        const games = JSON.parse(gamesData);
-        games.push({ game_id, client_email, createdAt: new Date() });
+        const data = await fs.readFile(GAMES_DB_FILE, 'utf-8');
+        const games = JSON.parse(data);
+        games.push(req.body);
         await fs.writeFile(GAMES_DB_FILE, JSON.stringify(games, null, 2));
-        res.status(201).json({ message: 'המשחק נשמר בהצלחה' });
-    } catch (error) {
-        res.status(500).json({ message: 'Error saving game' });
-    }
+        res.status(201).json({ message: 'Game saved' });
+    } catch (e) { res.status(500).json({e}); }
 });
 app.delete('/api/games/:gameId', async (req, res) => {
     try {
         const { gameId } = req.params;
-        const gamesData = await fs.readFile(GAMES_DB_FILE, 'utf-8');
-        let games = JSON.parse(gamesData);
-        const updatedGames = games.filter(g => g.game_id !== gameId);
-        if (games.length === updatedGames.length) return res.status(404).json({ message: 'Game not found' });
-        await fs.writeFile(GAMES_DB_FILE, JSON.stringify(updatedGames, null, 2));
-        res.json({ message: `Game ${gameId} deleted` });
-    } catch (error) {
-        res.status(500).json({ message: 'Error deleting game' });
-    }
+        const data = await fs.readFile(GAMES_DB_FILE, 'utf-8');
+        let games = JSON.parse(data);
+        const newGames = games.filter(g => g.game_id !== gameId);
+        await fs.writeFile(GAMES_DB_FILE, JSON.stringify(newGames, null, 2));
+        res.json({ message: 'Game deleted' });
+    } catch (e) { res.status(500).json({e}); }
 });
 
-// ===================================================================
-//                  API ROUTES - צפייה בתוצאות (לאדמין)
-// ===================================================================
+// --- ניהול תובנות ---
+app.get('/api/insights', async (req, res) => {
+    try {
+        const data = await fs.readFile(INSIGHTS_DB_FILE, 'utf-8');
+        res.json(JSON.parse(data));
+    } catch (e) { if (e.code === 'ENOENT') return res.json({}); res.status(500).json({e}); }
+});
+app.post('/api/insights', async (req, res) => {
+    try {
+        await fs.writeFile(INSIGHTS_DB_FILE, JSON.stringify(req.body, null, 2));
+        res.json({ message: 'Insights saved' });
+    } catch (e) { res.status(500).json({e}); }
+});
+
+// --- צפייה בתוצאות (אדמין) ---
 app.get('/api/results', async (req, res) => {
     try {
-        await ensurePathExists(RESULTS_DIR, true);
-        const resultFiles = await fs.readdir(RESULTS_DIR);
-        const summaries = [];
-        for (const file of resultFiles) {
-            if (file.startsWith('results_') && file.endsWith('.json')) {
-                const fileContent = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
-                const resultData = JSON.parse(fileContent);
-                summaries.push({
-                    game_id: resultData.game_id,
-                    client_email: resultData.client_email,
-                    processed_at: resultData.processed_at
-                });
-            }
-        }
-        res.json(summaries.sort((a, b) => new Date(b.processed_at) - new Date(a.processed_at)));
-    } catch (error) {
-        res.status(500).json({ message: 'Internal Server Error' });
-    }
+        const files = await fs.readdir(RESULTS_DIR);
+        const summaries = await Promise.all(files.map(async file => {
+            const content = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
+            const data = JSON.parse(content);
+            return { game_id: data.game_id, client_email: data.client_email, processed_at: data.processed_at };
+        }));
+        res.json(summaries.sort((a,b) => new Date(b.processed_at) - new Date(a.processed_at)));
+    } catch (e) { if (e.code === 'ENOENT') return res.json([]); res.status(500).json({e}); }
 });
 app.get('/api/results/:gameId', async (req, res) => {
     try {
         const { gameId } = req.params;
-        const filePath = path.join(RESULTS_DIR, `results_${gameId}.json`);
-        const fileContent = await fs.readFile(filePath, 'utf-8');
-        res.json(JSON.parse(fileContent));
-    } catch (error) {
-        if (error.code === 'ENOENT') return res.status(404).json({ message: 'Result not found' });
-        res.status(500).json({ message: 'Internal Server Error' });
-    }
+        const content = await fs.readFile(path.join(RESULTS_DIR, `results_${gameId}.json`), 'utf-8');
+        res.json(JSON.parse(content));
+    } catch (e) { if (e.code === 'ENOENT') return res.status(404).json({ message: 'Not found' }); res.status(500).json({e}); }
 });
 
-// ====[ API ROUTES - ניהול תובנות ]====
-app.get('/api/insights', async (req, res) => {
+// --- שליפת תוצאה למשתמש קצה ---
+app.get('/api/my-result/by-code/:accessCode', async (req, res) => {
     try {
-        const insightsData = await fs.readFile(INSIGHTS_DB_FILE, 'utf-8');
-        res.json(JSON.parse(insightsData));
-    } catch (error) {
-        res.status(500).json({ message: 'Error reading insights file' });
-    }
+        const { accessCode } = req.params;
+        const files = await fs.readdir(RESULTS_DIR);
+        for (const file of files) {
+            const content = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
+            const data = JSON.parse(content);
+            const user = data.individual_results.find(u => u.access_code === accessCode);
+            if (user) return res.json(user);
+        }
+        res.status(404).json({ message: 'Result not found' });
+    } catch (e) { res.status(500).json({e}); }
 });
-
-app.post('/api/insights', async (req, res) => {
+app.get('/api/my-result/by-phone/:phone', async (req, res) => {
     try {
-        const newInsights = req.body;
-        // כאן אפשר להוסיף ולידציה למבנה התובנות
-        await fs.writeFile(INSIGHTS_DB_FILE, JSON.stringify(newInsights, null, 2));
-        res.json({ message: 'Insights saved successfully' });
-    } catch (error) {
-        res.status(500).json({ message: 'Error saving insights' });
-    }
+        const { phone } = req.params;
+        const files = await fs.readdir(RESULTS_DIR);
+        for (const file of files) {
+            const content = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
+            const data = JSON.parse(content);
+            const user = data.individual_results.find(u => u.id === phone);
+            if (user) return res.json(user);
+        }
+        res.status(404).json({ message: 'Result not found' });
+    } catch (e) { res.status(500).json({e}); }
 });
 
-// ===================================================================
-//                  API ROUTE - עיבוד תוצאות
-// ===================================================================
+// --- עיבוד תוצאות ---
 app.post('/api/submit-results', async (req, res) => {
     try {
         console.log('--- RAW DATA RECEIVED ---:', JSON.stringify(req.body, null, 2));
         const { gameId: game_id, users } = req.body; 
-        if (!game_id || !users) {
-            return res.status(400).json({ message: 'Invalid data structure: Missing gameId or users' });
-        }
+        if (!game_id || !users) return res.status(400).json({ message: 'Invalid data structure' });
+        
         const participantsArray = Object.values(users);
         const gamesData = await fs.readFile(GAMES_DB_FILE, 'utf-8');
         const games = JSON.parse(gamesData);
         const currentGame = games.find(game => game.game_id === game_id);
         const client_email = currentGame ? currentGame.client_email : null;
-        if (!client_email) console.warn(`⚠️ Warning: No email found for game_id: ${game_id}`);
+        
         const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
         const questions = JSON.parse(questionsData);
         const questionMap = questions.reduce((map, q) => { map[q.question_id] = q; return map; }, {});
+
         const individual_results = [];
         const group_element_totals = {};
-        for (const participant of participantsArray) {
+
+        for (const [userId, participantData] of Object.entries(users)) {
             const elementCounts = { fire: 0, water: 0, air: 0, earth: 0 };
-            const totalAnswers = participant.answers ? Object.keys(participant.answers).length : 0;
-            if (participant.answers) {
-                for (const [questionId, answerChoice] of Object.entries(participant.answers)) {
+            const totalAnswers = participantData.answers ? Object.keys(participantData.answers).length : 0;
+            if (participantData.answers) {
+                for (const [questionId, answerChoice] of Object.entries(participantData.answers)) {
                     const question = questionMap[questionId];
                     if (question && question.answers_mapping) {
-                        const element = question.answers_mapping[answerChoice];
+                        const element = question.answers_mapping[String(answerChoice)];
                         if (element) elementCounts[element]++;
                     }
                 }
@@ -216,16 +198,17 @@ app.post('/api/submit-results', async (req, res) => {
                 prof[key] = totalAnswers > 0 ? (elementCounts[key] / totalAnswers) * 100 : 0;
                 return prof;
             }, {});
-const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
-            individual_results.push({ name: participant.name, group_name: participant.group_name, profile, access_code });
-            if(participant.group_name) {
-                if (!group_element_totals[participant.group_name]) {
-                    group_element_totals[participant.group_name] = { counts: { fire: 0, water: 0, air: 0, earth: 0 }, participant_count: 0 };
+            const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
+            individual_results.push({ id: userId, name: participantData.name, group_name: participantData.group_name, profile, access_code });
+            if(participantData.group_name) {
+                if (!group_element_totals[participantData.group_name]) {
+                    group_element_totals[participantData.group_name] = { counts: { fire: 0, water: 0, air: 0, earth: 0 }, participant_count: 0 };
                 }
-                Object.keys(profile).forEach(elem => group_element_totals[participant.group_name].counts[elem] += profile[elem]);
-                group_element_totals[participant.group_name].participant_count++;
+                Object.keys(profile).forEach(elem => group_element_totals[participantData.group_name].counts[elem] += profile[elem]);
+                group_element_totals[participantData.group_name].participant_count++;
             }
         }
+        
         const group_results = {};
         for(const [groupName, data] of Object.entries(group_element_totals)) {
             group_results[groupName] = {
@@ -239,7 +222,7 @@ const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
         const finalResult = { game_id, client_email, processed_at: new Date().toISOString(), individual_results, group_results };
         const resultFilePath = path.join(RESULTS_DIR, `results_${game_id}.json`);
         await fs.writeFile(resultFilePath, JSON.stringify(finalResult, null, 2));
-        console.log(`✅ תוצאות עבור משחק ${game_id} עובדו ונשמרו (עם מייל: ${client_email}).`);
+        console.log(`✅ תוצאות עבור משחק ${game_id} עובדו ונשמרו.`);
 
         const webhookUrl = process.env.WEBHOOK_URL;
         if (webhookUrl) {
@@ -249,7 +232,7 @@ const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
                     client_dashboard_url: `https://masaa.clicker.co.il/results/${game_id}`
                 };
                 await axios.post(webhookUrl, payload);
-                console.log(`📢 Webhook נשלח בהצלחה אל: ${webhookUrl}`);
+                console.log(`📢 Webhook נשלח בהצלחה.`);
             } catch (webhookError) {
                 console.error(`❌ Error sending webhook: ${webhookError.message}`);
             }
@@ -272,9 +255,8 @@ app.listen(PORT, '0.0.0.0', async () => {
   await ensurePathExists(GAMES_DB_FILE, false);
   await ensurePathExists(QUESTIONS_DB_FILE, false);
   await ensurePathExists(RESULTS_DIR, true);
-await ensurePathExists(INSIGHTS_DB_FILE, false, JSON.stringify({ dominant_insights: {}, general_insights: {} }));
+  await ensurePathExists(INSIGHTS_DB_FILE, false, JSON.stringify({ dominant_insights: {}, general_insights: {} }));
   
   console.log(`✅ Server is running on port ${PORT}`);
   console.log(`🗄️ Persistent data directory is at: ${DATA_DIR}`);
-  console.log(`🚀 Admin interfaces are available`);
 });

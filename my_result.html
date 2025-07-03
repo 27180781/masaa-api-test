@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>התוצאות שלי</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; color: #333; text-align: center; }
+        h1, h2 { color: #1d5b85; }
+        .search-container { background-color: #f7f8fb; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        input[type="text"] { width: 250px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+        button { background-color: #27ae60; color: white; padding: 10px 20px; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; margin-right: 5px; }
+        #resultsContainer { text-align: right; }
+        .insight-text { font-size: 1.1em; line-height: 1.6; }
+        .insight-text p { margin: 10px 0; }
+        .insight-text strong { color: #1d5b85; }
+        .profile-bars-container { margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <h1>מסע אל תוך עצמי - התוצאות שלי</h1>
+
+    <div class="search-container">
+        <h2>הצגת תוצאות</h2>
+        <input type="text" id="searchInput" placeholder="הכנס קוד אישי או מספר טלפון">
+        <button id="searchButton">חפש</button>
+    </div>
+
+    <div id="resultsContainer">
+        </div>
+
+    <script>
+        const searchInput = document.getElementById('searchInput');
+        const searchButton = document.getElementById('searchButton');
+        const resultsContainer = document.getElementById('resultsContainer');
+
+        function createProfileBars(profile) { /* ... כמו שהיה ... */ }
+        function getDominantElement(profile) { /* ... כמו שהיה ... */ }
+        function generateInsightHTML(profile, insights) { /* ... כמו שהיה ... */ }
+
+        async function findMyResults() {
+            const query = searchInput.value.trim();
+            if (!query) {
+                alert('יש להזין קוד אישי או מספר טלפון');
+                return;
+            }
+
+            resultsContainer.innerHTML = '<p>מחפש את התוצאות שלך...</p>';
+            
+            // נבדוק אם זה נראה כמו מספר טלפון או קוד
+            const isPhoneNumber = /^\d{10,}$/.test(query.replace(/-/g, ''));
+            const endpoint = isPhoneNumber 
+                ? `/api/my-result/by-phone/${query}` 
+                : `/api/my-result/by-code/${query}`;
+
+            try {
+                const [resultRes, insightsRes] = await Promise.all([
+                    fetch(endpoint),
+                    fetch('/api/insights')
+                ]);
+
+                if (!resultRes.ok) throw new Error('התוצאות לא נמצאו. אנא ודא שהקוד או מספר הטלפון נכונים.');
+
+                const result = await resultRes.json();
+                const insights = await insightsRes.json();
+                
+                let html = `
+                    <h2>שלום, ${result.name}! הנה הפרופיל שלך:</h2>
+                    <div class="profile-bars-container">${createProfileBars(result.profile)}</div>
+                    <div>${generateInsightHTML(result.profile, insights)}</div>
+                `;
+                resultsContainer.innerHTML = html;
+
+            } catch (error) {
+                resultsContainer.innerHTML = `<p style="color: red;">${error.message}</p>`;
+            }
+        }
+
+        searchButton.addEventListener('click', findMyResults);
+        searchInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') findMyResults();
+        });
+
+        // העתק לכאן את הפונקציות המלאות מ-results_admin.html
+        // createProfileBars, getDominantElement, generateInsightHTML
+    </script>
+</body>
+</html>
