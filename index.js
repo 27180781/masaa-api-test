@@ -14,6 +14,7 @@ const DATA_DIR = '/app/data';
 const GAMES_DB_FILE = path.join(DATA_DIR, 'games.json');
 const QUESTIONS_DB_FILE = path.join(DATA_DIR, 'questions.json');
 const RESULTS_DIR = path.join(DATA_DIR, 'results');
+const INSIGHTS_DB_FILE = path.join(DATA_DIR, 'insights.json');
 
 // ===================================================================
 //                             MIDDLEWARE
@@ -39,6 +40,7 @@ app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html'))
 app.get('/games_admin', (req, res) => res.sendFile(path.join(__dirname, 'games_admin.html')));
 app.get('/results_admin', (req, res) => res.sendFile(path.join(__dirname, 'results_admin.html')));
 app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'client_dashboard.html')));
+app.get('/insights_admin', (req, res) => res.sendFile(path.join(__dirname, 'insights_admin.html')));
 
 // ===================================================================
 //                  API ROUTES - ניהול שאלות
@@ -156,6 +158,27 @@ app.get('/api/results/:gameId', async (req, res) => {
     }
 });
 
+// ====[ API ROUTES - ניהול תובנות ]====
+app.get('/api/insights', async (req, res) => {
+    try {
+        const insightsData = await fs.readFile(INSIGHTS_DB_FILE, 'utf-8');
+        res.json(JSON.parse(insightsData));
+    } catch (error) {
+        res.status(500).json({ message: 'Error reading insights file' });
+    }
+});
+
+app.post('/api/insights', async (req, res) => {
+    try {
+        const newInsights = req.body;
+        // כאן אפשר להוסיף ולידציה למבנה התובנות
+        await fs.writeFile(INSIGHTS_DB_FILE, JSON.stringify(newInsights, null, 2));
+        res.json({ message: 'Insights saved successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error saving insights' });
+    }
+});
+
 // ===================================================================
 //                  API ROUTE - עיבוד תוצאות
 // ===================================================================
@@ -249,6 +272,7 @@ app.listen(PORT, '0.0.0.0', async () => {
   await ensurePathExists(GAMES_DB_FILE, false);
   await ensurePathExists(QUESTIONS_DB_FILE, false);
   await ensurePathExists(RESULTS_DIR, true);
+await ensurePathExists(INSIGHTS_DB_FILE, false, JSON.stringify({ dominant_insights: {}, general_insights: {} }));
   
   console.log(`✅ Server is running on port ${PORT}`);
   console.log(`🗄️ Persistent data directory is at: ${DATA_DIR}`);

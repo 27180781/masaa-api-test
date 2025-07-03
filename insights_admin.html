@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ניהול תובנות</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; color: #333; }
+        h1, h2 { color: #1d5b85; }
+        textarea { width: 98%; min-height: 80px; padding: 8px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 3px; }
+        .form-container { background-color: #f7f8fb; padding: 20px; border-radius: 5px; }
+        button { background-color: #27ae60; color: white; padding: 12px 25px; border: none; border-radius: 5px; font-size: 18px; cursor: pointer; }
+        nav a { margin-left: 20px; font-size: 18px; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/admin">ניהול שאלות</a>
+        <a href="/games_admin">ניהול משחקים</a>
+        <a href="/results_admin">דשבורד תוצאות</a>
+        <a href="/insights_admin">ניהול תובנות</a>
+    </nav>
+    <h1>ניהול תובנות ותוצאות</h1>
+    <div id="insightsForm" class="form-container">
+        <h2>תובנות על יסוד דומיננטי</h2>
+        <label for="dominant_fire">אש:</label>
+        <textarea id="dominant_fire"></textarea>
+        <label for="dominant_water">מים:</label>
+        <textarea id="dominant_water"></textarea>
+        <label for="dominant_air">אוויר:</label>
+        <textarea id="dominant_air"></textarea>
+        <label for="dominant_earth">אדמה:</label>
+        <textarea id="dominant_earth"></textarea>
+        
+        <h2>תובנות כלליות (לפי אחוזים)</h2>
+        <p>כאן תוכל להגדיר תובנות קצרות לכל יסוד לפי טווחי אחוזים. המערכת תבחר את התובנה הראשונה שהמשתמש עומד בסף המינימלי שלה (מהגבוה לנמוך).</p>
+        <button id="saveButton">שמור שינויים</button>
+    </div>
+
+    <script>
+        const form = document.getElementById('insightsForm');
+        const saveButton = document.getElementById('saveButton');
+        const fields = {
+            dominant_fire: document.getElementById('dominant_fire'),
+            dominant_water: document.getElementById('dominant_water'),
+            dominant_air: document.getElementById('dominant_air'),
+            dominant_earth: document.getElementById('dominant_earth'),
+        };
+
+        async function loadInsights() {
+            try {
+                const response = await fetch('/api/insights');
+                const data = await response.json();
+                fields.dominant_fire.value = data.dominant_insights.fire;
+                fields.dominant_water.value = data.dominant_insights.water;
+                fields.dominant_air.value = data.dominant_insights.air;
+                fields.dominant_earth.value = data.dominant_insights.earth;
+                // ניתן להרחיב כדי לטעון גם את התובנות הכלליות
+            } catch (error) {
+                console.error('Error loading insights:', error);
+            }
+        }
+
+        saveButton.addEventListener('click', async () => {
+            // כרגע שומרים רק את התובנות הדומיננטיות, ניתן להרחיב בקלות
+            const updatedData = {
+                dominant_insights: {
+                    fire: fields.dominant_fire.value,
+                    water: fields.dominant_water.value,
+                    air: fields.dominant_air.value,
+                    earth: fields.dominant_earth.value,
+                },
+                general_insights: {} // ניתן לאכלס משדות טופס נוספים
+            };
+
+            try {
+                const response = await fetch('/api/insights', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updatedData)
+                });
+                if (response.ok) {
+                    alert('התובנות נשמרו בהצלחה!');
+                } else {
+                    alert('שגיאה בשמירת התובנות.');
+                }
+            } catch (error) {
+                console.error('Error saving insights:', error);
+                alert('שגיאת תקשורת.');
+            }
+        });
+
+        loadInsights();
+    </script>
+</body>
+</html>
