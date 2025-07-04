@@ -369,64 +369,134 @@ app.post('/api/submit-results', async (req, res) => {
         const resultFilePath = path.join(RESULTS_DIR, `results_${game_id}.json`);
         await fs.writeFile(resultFilePath, JSON.stringify(finalResult, null, 2));
         console.log(`✅ תוצאות עבור משחק ${game_id} עובדו ונשמרו (עם מייל: ${client_email}).`);
+app.post('/api/submit-results', async (req, res) => {
+    try {
+        console.log('--- RAW DATA RECEIVED ---:', JSON.stringify(req.body, null, 2));
+        let { gameId: game_id, users } = req.body;
+        if (!game_id || !users) return res.status(400).json({ message: 'Invalid data structure' });
 
-     // --- שליחת Webhooks על בסיס קובץ הגדרות ---
-        let settings = {};
-        try {
-            const settingsData = await fs.readFile(SETTINGS_DB_FILE, 'utf-8');
-            settings = JSON.parse(settingsData);
-        } catch (e) {
-            console.warn('⚠️ Could not read settings file, skipping webhooks.');
-        }
-// --- [שדרוג]: שליחת Webhook בשיטת GET עם פרמטרים ---
-try {
-    const settingsData = await fs.readFile(SETTINGS_DB_FILE, 'utf-8');
-    const settings = JSON.parse(settingsData);
+        game_id = game_id.trim();
 
-    // 1. Webhook סיכום למנהל המשחק
-    const baseWebhookUrl = settings.summary_webhook_url;
-    if (baseWebhookUrl && client_email) { // שלח רק אם יש גם כתובת וגם מייל
-        try {
-            const dashboardLink = `https://masaa.clicker.co.il/results/${game_id}`;
+        const gamesData = await fs.readFile(GAMES_DB_FILE, 'utf-8');
+        const games = JSON.parse(gamesData);
+        const currentGame = games.find(game => game.game_id === game_id);
+        const client_email = currentGame ? currentGame.client_email : null;
 
-            // קידוד הפרמטרים כדי לוודא שהם תקינים לשימוש ב-URL
-            const encodedEmail = encodeURIComponent(client_email);
-            const encodedLink = encodeURIComponent(dashboardLink);
+        const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
+        const questions = JSON.parse(questionsData);
+        const questionMap = questions.reduce((map, q) => { map[q.question_id] = q; return map; }, {});
 
-            // בניית הכתובת הסופית עם שרשור הפרמטרים
-            const finalWebhookUrl = `${baseWebhookUrl}&Email=${encodedEmail}&Text27=${encodedLink}`;
+        const individual_results = [];
+        const group_element_totals = {};
+        const game_grand_totals = { fire: 0, water: 0, air: 0, earth: 0 };
 
-            console.log(`📢 Sending GET webhook to: ${finalWebhookUrl}`);
-            await axios.get(finalWebhookUrl); // <-- שימוש ב-GET במקום POST
-            console.log(`📢 Webhook סיכום נשלח בהצלחה.`);
+        for (const [userId, participantData] of Object.entries(users)) {
+            const elementCounts = { fire: 0, water: 0, air: 0, earth: 0 };
+            let validAnswersCount = 0;
 
-        } catch (webhookError) {
-            console.error(`❌ Error sending summary GET webhook: ${webhookError.message}`);
-        }
-    } else {
-        if (game_id) console.warn('⚠️ Summary Webhook URL or Client Email not defined. Skipping summary webhook.');
-    }
+            if (participantData.answers) {
+                for (const [questionId, answerChoice] of Object.entries(participantData.answers)) {
+                    const question = questionMap[questionId];
+                    if (question && question.answers_mapping) {
+                        const element = question.answers_mapping[String(answerChoice)];
+                        if (element) {
+                            elementCounts[element]++;
+                            validAnswersCount++;
+                        }
+                    }
+                }
+            }
 
-    // 2. Webhook לכל משתתף (נשאר כמו שהיה, בשיטת POST)
-    const participantWebhookUrl = settings.participant_webhook_url;
-    if (participantWebhookUrl) {
-        for (const participantResult of individual_results) {
-            try {
-                const payload = { ...participantResult, game_id, client_email };
-                await axios.post(participantWebhookUrl, payload);
-                console.log(`📢 Webhook נשלח עבור משתתף: ${participantResult.name}`);
-            } catch (e) {
-                console.error(`❌ Error sending webhook for participant ${participantResult.name}: ${e.message}`);
+            const profile = Object.keys(elementCounts).reduce((prof, key) => {
+                prof[key] = validAnswersCount > 0 ? (elementCounts[key] / validAnswersCount) * 100 : 0;
+                return prof;
+            }, {});
+
+            Object.keys(profile).forEach(elem => { game_grand_totals[elem] += profile[elem]; });
+            const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
+            individual_results.push({ id: userId, name: participantData.name, group_name: participantData.group_name, profile, access_code });
+
+            if (participantData.group_name) {
+                if (!group_element_totals[participantData.group_name]) {
+                    group_element_totals[participantData.group_name] = { counts: { fire: 0, water: 0, air: 0, earth: 0 }, participant_count: 0 };
+                }
+                Object.keys(profile).forEach(elem => group_element_totals[participantData.group_name].counts[elem] += profile[elem]);
+                group_element_totals[participantData.group_name].participant_count++;
             }
         }
-    } else {
-        if (game_id) console.warn('⚠️ Participant Webhook URL not defined. Skipping participant webhooks.');
+
+        const group_results = {};
+        for (const [groupName, data] of Object.entries(group_element_totals)) {
+            group_results[groupName] = {
+                profile: Object.keys(data.counts).reduce((prof, key) => {
+                    prof[key] = data.counts[key] / data.participant_count;
+                    return prof;
+                }, {}),
+                participant_count: data.participant_count
+            };
+        }
+
+        const totalParticipants = individual_results.length;
+        const game_average_profile = Object.keys(game_grand_totals).reduce((prof, key) => {
+            prof[key] = totalParticipants > 0 ? game_grand_totals[key] / totalParticipants : 0;
+            return prof;
+        }, {});
+
+        const finalResult = { game_id, client_email, processed_at: new Date().toISOString(), game_average_profile, individual_results, group_results };
+        const resultFilePath = path.join(RESULTS_DIR, `results_${game_id}.json`);
+        await fs.writeFile(resultFilePath, JSON.stringify(finalResult, null, 2));
+        console.log(`✅ תוצאות עבור משחק ${game_id} עובדו ונשמרו (עם מייל: ${client_email}).`);
+
+        // --- שליחת Webhooks על בסיס קובץ הגדרות ---
+        try {
+            const settingsData = await fs.readFile(SETTINGS_DB_FILE, 'utf-8');
+            const settings = JSON.parse(settingsData);
+
+            // 1. Webhook סיכום למנהל המשחק (בשיטת GET)
+            const baseWebhookUrl = settings.summary_webhook_url;
+            if (baseWebhookUrl && client_email) {
+                try {
+                    const dashboardLink = `https://masaa.clicker.co.il/results/${game_id}`;
+                    const encodedEmail = encodeURIComponent(client_email);
+                    const encodedLink = encodeURIComponent(dashboardLink);
+                    const finalWebhookUrl = `${baseWebhookUrl}&Email=${encodedEmail}&Text27=${encodedLink}`;
+                    
+                    console.log(`📢 Sending GET webhook to: ${finalWebhookUrl}`);
+                    await axios.get(finalWebhookUrl);
+                    console.log(`📢 Webhook סיכום נשלח בהצלחה.`);
+                } catch (webhookError) {
+                    console.error(`❌ Error sending summary GET webhook: ${webhookError.message}`);
+                }
+            } else {
+                if (game_id) console.warn('⚠️ Summary Webhook URL or Client Email not defined. Skipping summary webhook.');
+            }
+
+            // 2. Webhook לכל משתתף (בשיטת POST)
+            const participantWebhookUrl = settings.participant_webhook_url;
+            if (participantWebhookUrl) {
+                for (const participantResult of individual_results) {
+                    try {
+                        const payload = { ...participantResult, game_id, client_email };
+                        await axios.post(participantWebhookUrl, payload);
+                        console.log(`📢 Webhook נשלח עבור משתתף: ${participantResult.name}`);
+                    } catch (e) {
+                        console.error(`❌ Error sending webhook for participant ${participantResult.name}: ${e.message}`);
+                    }
+                }
+            } else {
+                if (game_id) console.warn('⚠️ Participant Webhook URL not defined. Skipping participant webhooks.');
+            }
+        } catch (e) {
+            console.warn('⚠️ Could not read settings file, skipping all webhooks.');
+        }
+
+        res.json({ status: 'success', message: 'Game results processed successfully' });
+
+    } catch (error) {
+        console.error('❌ Error processing results:', error);
+        res.status(500).json({ message: 'Internal Server Error' });
     }
-} catch (e) {
-    // This catch block is for the fs.readFile(SETTINGS_DB_FILE,...)
-    // It prevents a crash if the settings file is missing.
-    console.warn('⚠️ Could not read settings file, skipping all webhooks.');
-// ===================================================================
+});// ===================================================================
 //                          SERVER STARTUP
 // ===================================================================
 app.listen(PORT, '0.0.0.0', async () => {
