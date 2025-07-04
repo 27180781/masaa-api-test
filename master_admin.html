@@ -4,16 +4,16 @@
     <meta charset="UTF-8">
     <title>דשבורד ניהול ראשי</title>
     <style>
+        /* העיצוב נשאר זהה */
         body { font-family: Arial, sans-serif; padding: 20px; max-width: 1200px; margin: auto; }
-        h1, h2, h3, h4 { color: #1d5b85; }
-        h3 { border-top: 1px solid #ccc; padding-top: 20px; margin-top: 20px;}
+        h1, h2, h3 { color: #1d5b85; }
         .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
         .card { background-color: #f7f8fb; border: 1px solid #ddd; border-radius: 8px; padding: 20px; }
-        .card a, .card button { display: block; background-color: #3295c7; color: white; text-decoration: none; padding: 12px; margin-bottom: 10px; border-radius: 5px; text-align: center; border: none; font-size: 16px; cursor: pointer; }
-        .card a:hover { background-color: #1d5b85; }
-        .card input { width: calc(100% - 22px); padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; }
-        pre { background-color: #2d2d2d; color: #f8f8f2; padding: 10px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; font-size: 0.9em; text-align: left; direction: ltr;}
-        code { background-color: #eee; padding: 2px 5px; border-radius: 3px; }
+        .card a { display: block; background-color: #3295c7; color: white; text-decoration: none; padding: 12px; margin-bottom: 10px; border-radius: 5px; text-align: center; }
+        .card button { background-color: #27ae60; color: white; padding: 8px 15px; border: none; border-radius: 5px; font-size: 14px; cursor: pointer; margin-top: 5px; }
+        .card input { width: calc(100% - 22px); padding: 10px; margin-bottom: 5px; border: 1px solid #ccc; }
+        .setting-item { margin-bottom: 15px; }
+        pre { background-color: #2d2d2d; color: #f8f8f2; padding: 10px; border-radius: 5px; white-space: pre-wrap; font-size: 0.9em; text-align: left; direction: ltr;}
     </style>
 </head>
 <body>
@@ -21,66 +21,66 @@
     <div class="grid-container">
         <div class="card">
             <h2>כלי ניהול</h2>
-            <a href="/games_admin" target="_blank">ניהול משחקים (שיוך למייל)</a>
+            <a href="/games_admin" target="_blank">ניהול משחקים</a>
             <a href="/admin" target="_blank">ניהול שאלות</a>
             <a href="/insights_admin" target="_blank">ניהול תובנות</a>
-            <a href="/results_admin" target="_blank">צפייה בתוצאות (דשבורד)</a>
+            <a href="/results_admin" target="_blank">צפייה בתוצאות</a>
         </div>
         <div class="card">
             <h2>הגדרות גלובליות</h2>
-            <form id="settingsForm">
+            <div class="setting-item">
                 <label for="summary_webhook_url">כתובת Webhook לסיכום משחק:</label>
-                <input type="url" id="summary_webhook_url" placeholder="https://...">
+                <input type="url" id="summary_webhook_url">
+                <button onclick="saveSetting('summary_webhook_url')">שמור</button>
+            </div>
+            <div class="setting-item">
                 <label for="participant_webhook_url">כתובת Webhook לכל משתתף:</label>
-                <input type="url" id="participant_webhook_url" placeholder="https://...">
-                <button type="submit">שמור הגדרות</button>
-            </form>
+                <input type="url" id="participant_webhook_url">
+                <button onclick="saveSetting('participant_webhook_url')">שמור</button>
+            </div>
         </div>
         <div class="card" style="grid-column: 1 / -1;">
             <h2>תיעוד API וקישורים</h2>
-            
-            <h3>דפים למשתמשים</h3>
-            <p>דף תוצאות ללקוח (מפעיל): <code>https://masaa.clicker.co.il/results/<strong>[מזהה_המשחק]</strong></code></p>
-            <p>דף תוצאה אישי למשתתף: <code>https://masaa.clicker.co.il/my-result</code></p>
-            
-            <h3>נקודות API</h3>
-            
-            <h3>יצירת משחק חדש</h3>
-            <p><strong>POST</strong> <code>https://masaa.clicker.co.il/api/games</code></p>
-            <p>יוצר שיוך חדש בין מזהה משחק למייל של לקוח.</p>
-            <h4>פורמט JSON לשליחה:</h4>
-            <pre>{
-    "game_id": "some-unique-id",
-    "client_email": "client@example.com"
-}</pre>
-
-            <h3>שליחת תוצאות משחק</h3>
-            <p><strong>POST</strong> <code>https://masaa.clicker.co.il/api/submit-results</code></p>
-            <p>שולח את כל נתוני המשחק הגולמיים לעיבוד.</p>
-            <h4>פורמט JSON לשליחה:</h4>
-            <pre>{
-    "gameId": "some-unique-id",
-    "users": {
-        "0501234567": {
-            "name": "שם המשתתף",
-            "group_name": "שם הקבוצה",
-            "answers": { "q1": "1", "q2": "4", ... }
-        }
-    }
-}</pre>
-
-            <h3>שליפת תוצאה אישית לפי קוד</h3>
-            <p><strong>GET</strong> <code>https://masaa.clicker.co.il/api/my-result/by-code/<strong>[קוד_גישה]</strong></code></p>
-            <p>מחזיר את הפרופיל המלא, כולל התובנות, של משתתף ספציפי.</p>
-            
-            <h3>שליפת תוצאה אישית לפי טלפון</h3>
-            <p><strong>GET</strong> <code>https://masaa.clicker.co.il/api/my-result/by-phone/<strong>[מספר_טלפון]</strong></code></p>
-            <p>מחזיר את הפרופיל המלא, כולל התובנות, של משתתף ספציפי.</p>
-        </div>
+            </div>
     </div>
 
     <script>
-        // קוד ה-JavaScript נשאר זהה
+        const summaryUrlInput = document.getElementById('summary_webhook_url');
+        const participantUrlInput = document.getElementById('participant_webhook_url');
+
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                const settings = await response.json();
+                summaryUrlInput.value = settings.summary_webhook_url || '';
+                participantUrlInput.value = settings.participant_webhook_url || '';
+            } catch (e) { console.error("Could not load settings", e); }
+        }
+
+        async function saveSetting(key) {
+            const inputElement = document.getElementById(key);
+            const value = inputElement.value;
+
+            const settingToUpdate = {};
+            settingToUpdate[key] = value; // יצירת אובייקט עם שדה אחד בלבד
+
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'PATCH', // שימוש ב-PATCH לעדכון חלקי
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settingToUpdate)
+                });
+                if (response.ok) {
+                    alert('ההגדרה נשמרה!');
+                } else {
+                    alert('שגיאה בשמירת ההגדרה.');
+                }
+            } catch(e) {
+                alert('שגיאת תקשורת.');
+            }
+        }
+
+        loadSettings();
     </script>
 </body>
 </html>

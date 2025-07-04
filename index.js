@@ -48,23 +48,40 @@ app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'cli
 // ===================================================================
 //                  API ROUTES
 // ===================================================================
-// --- [חדש] ניהול הגדרות ---
+// --- ניהול הגדרות ---
 app.get('/api/settings', async (req, res) => {
     try {
         const settingsData = await fs.readFile(SETTINGS_DB_FILE, 'utf-8');
         res.json(JSON.parse(settingsData));
     } catch (e) {
-        if (e.code === 'ENOENT') {
-            return res.json({ summary_webhook_url: '', participant_webhook_url: '' });
-        }
-        res.status(500).json({ message: 'Error reading settings' });
+        if (e.code === 'ENOENT') return res.json({}); // אם הקובץ לא קיים, החזר אובייקט ריק
+        console.error('❌ Error reading settings file:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
     }
 });
-app.post('/api/settings', async (req, res) => {
+
+// [שדרוג] שימוש ב-PATCH לעדכון חלקי של ההגדרות
+app.patch('/api/settings', async (req, res) => {
     try {
-        await fs.writeFile(SETTINGS_DB_FILE, JSON.stringify(req.body, null, 2));
-        res.json({ message: 'Settings saved successfully' });
-    } catch (e) { res.status(500).json({ message: 'Error saving settings' }); }
+        const updatedFields = req.body;
+        let currentSettings = {};
+        try {
+            const settingsData = await fs.readFile(SETTINGS_DB_FILE, 'utf-8');
+            currentSettings = JSON.parse(settingsData);
+        } catch (e) {
+            // אם הקובץ לא קיים, נמשיך עם אובייקט ריק
+            if (e.code !== 'ENOENT') throw e;
+        }
+
+        // מיזוג ההגדרות החדשות עם הישנות
+        const newSettings = { ...currentSettings, ...updatedFields };
+
+        await fs.writeFile(SETTINGS_DB_FILE, JSON.stringify(newSettings, null, 2));
+        res.json({ message: 'Settings updated successfully' });
+    } catch (e) {
+        console.error('❌ Error updating settings:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 // --- ניהול שאלות ---
 app.get('/api/questions', async (req, res) => {
