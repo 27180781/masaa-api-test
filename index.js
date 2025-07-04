@@ -291,7 +291,6 @@ app.get('/api/my-result/by-phone/:phone', async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
-// --- [שדרוג] עיבוד תוצאות ---
 app.post('/api/submit-results', async (req, res) => {
     try {
         console.log('--- RAW DATA RECEIVED ---:', JSON.stringify(req.body, null, 2));
@@ -311,33 +310,34 @@ app.post('/api/submit-results', async (req, res) => {
 
         const individual_results = [];
         const group_element_totals = {};
-        // [חדש] אובייקט לסכימת כל האחוזים במשחק
-        const game_grand_totals = { fire: 0, water: 0, air: 0, earth: 0 }; 
+        const game_grand_totals = { fire: 0, water: 0, air: 0, earth: 0 };
 
         for (const [userId, participantData] of Object.entries(users)) {
             const elementCounts = { fire: 0, water: 0, air: 0, earth: 0 };
-            const totalAnswers = participantData.answers ? Object.keys(participantData.answers).length : 0;
+            let validAnswersCount = 0; // [תיקון] סופר חדש רק לתשובות שתואמות לקטלוג
+
             if (participantData.answers) {
                 for (const [questionId, answerChoice] of Object.entries(participantData.answers)) {
                     const question = questionMap[questionId];
                     if (question && question.answers_mapping) {
                         const element = question.answers_mapping[String(answerChoice)];
-                        if (element) elementCounts[element]++;
+                        if (element) {
+                            elementCounts[element]++;
+                            validAnswersCount++; // [תיקון] סופרים רק אם התשובה תקפה
+                        }
                     }
                 }
             }
+
+            // [תיקון] חישוב האחוזים מבוסס כעת רק על כמות התשובות התקפות
             const profile = Object.keys(elementCounts).reduce((prof, key) => {
-                prof[key] = totalAnswers > 0 ? (elementCounts[key] / totalAnswers) * 100 : 0;
+                prof[key] = validAnswersCount > 0 ? (elementCounts[key] / validAnswersCount) * 100 : 0;
                 return prof;
             }, {});
-            const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
-            
-            individual_results.push({ id: userId, name: participantData.name, group_name: participantData.group_name, profile, access_code });
 
-            // [חדש] הוספת האחוזים של המשתתף לסך הכללי של המשחק
-            Object.keys(profile).forEach(elem => {
-                game_grand_totals[elem] += profile[elem];
-            });
+            Object.keys(profile).forEach(elem => { game_grand_totals[elem] += profile[elem]; });
+            const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
+            individual_results.push({ id: userId, name: participantData.name, group_name: participantData.group_name, profile, access_code });
 
             if (participantData.group_name) {
                 if (!group_element_totals[participantData.group_name]) {
@@ -359,28 +359,16 @@ app.post('/api/submit-results', async (req, res) => {
             };
         }
 
-        // [חדש] חישוב הממוצע הכללי של המשחק
         const totalParticipants = individual_results.length;
-        const game_average_profile = {
-            fire: totalParticipants > 0 ? game_grand_totals.fire / totalParticipants : 0,
-            water: totalParticipants > 0 ? game_grand_totals.water / totalParticipants : 0,
-            air: totalParticipants > 0 ? game_grand_totals.air / totalParticipants : 0,
-            earth: totalParticipants > 0 ? game_grand_totals.earth / totalParticipants : 0,
-        };
-        
-        // הרכבת אובייקט התוצאה הסופי
-        const finalResult = {
-            game_id,
-            client_email,
-            processed_at: new Date().toISOString(),
-            game_average_profile, // <-- הוספנו את הממוצע הכללי
-            individual_results,
-            group_results
-        };
+        const game_average_profile = Object.keys(game_grand_totals).reduce((prof, key) => {
+            prof[key] = totalParticipants > 0 ? game_grand_totals[key] / totalParticipants : 0;
+            return prof;
+        }, {});
 
+        const finalResult = { game_id, client_email, processed_at: new Date().toISOString(), game_average_profile, individual_results, group_results };
         const resultFilePath = path.join(RESULTS_DIR, `results_${game_id}.json`);
         await fs.writeFile(resultFilePath, JSON.stringify(finalResult, null, 2));
-        console.log(`✅ תוצאות עבור משחק ${game_id} עובדו ונשמרו.`);
+        console.log(`✅ תוצאות עבור משחק ${game_id} עובדו ונשמרו (עם מייל: ${client_email}).`);
 
      // --- שליחת Webhooks על בסיס קובץ הגדרות ---
         let settings = {};
