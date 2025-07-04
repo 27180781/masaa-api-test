@@ -378,17 +378,55 @@ app.post('/api/submit-results', async (req, res) => {
         } catch (e) {
             console.warn('⚠️ Could not read settings file, skipping webhooks.');
         }
+// --- [שדרוג]: שליחת Webhook בשיטת GET עם פרמטרים ---
+try {
+    const settingsData = await fs.readFile(SETTINGS_DB_FILE, 'utf-8');
+    const settings = JSON.parse(settingsData);
 
-        // 1. Webhook סיכום למנהל
-        if (settings.summary_webhook_url) {
-            try {
-                const payload = { ...finalResult, client_dashboard_url: `https://masaa.clicker.co.il/results/${game_id}` };
-                await axios.post(settings.summary_webhook_url, payload);
-                console.log(`📢 Webhook סיכום נשלח בהצלחה`);
-            } catch (e) { console.error(`❌ Error sending summary webhook: ${e.message}`); }
+    // 1. Webhook סיכום למנהל המשחק
+    const baseWebhookUrl = settings.summary_webhook_url;
+    if (baseWebhookUrl && client_email) { // שלח רק אם יש גם כתובת וגם מייל
+        try {
+            const dashboardLink = `https://masaa.clicker.co.il/results/${game_id}`;
+
+            // קידוד הפרמטרים כדי לוודא שהם תקינים לשימוש ב-URL
+            const encodedEmail = encodeURIComponent(client_email);
+            const encodedLink = encodeURIComponent(dashboardLink);
+
+            // בניית הכתובת הסופית עם שרשור הפרמטרים
+            const finalWebhookUrl = `${baseWebhookUrl}&Email=${encodedEmail}&Text27=${encodedLink}`;
+
+            console.log(`📢 Sending GET webhook to: ${finalWebhookUrl}`);
+            await axios.get(finalWebhookUrl); // <-- שימוש ב-GET במקום POST
+            console.log(`📢 Webhook סיכום נשלח בהצלחה.`);
+
+        } catch (webhookError) {
+            console.error(`❌ Error sending summary GET webhook: ${webhookError.message}`);
         }
+    } else {
+        if (game_id) console.warn('⚠️ Summary Webhook URL or Client Email not defined. Skipping summary webhook.');
+    }
 
-        // 2. Webhook לכל משתתף
+    // 2. Webhook לכל משתתף (נשאר כמו שהיה, בשיטת POST)
+    const participantWebhookUrl = settings.participant_webhook_url;
+    if (participantWebhookUrl) {
+        for (const participantResult of individual_results) {
+            try {
+                const payload = { ...participantResult, game_id, client_email };
+                await axios.post(participantWebhookUrl, payload);
+                console.log(`📢 Webhook נשלח עבור משתתף: ${participantResult.name}`);
+            } catch (e) {
+                console.error(`❌ Error sending webhook for participant ${participantResult.name}: ${e.message}`);
+            }
+        }
+    } else {
+        if (game_id) console.warn('⚠️ Participant Webhook URL not defined. Skipping participant webhooks.');
+    }
+} catch (e) {
+    // This catch block is for the fs.readFile(SETTINGS_DB_FILE,...)
+    // It prevents a crash if the settings file is missing.
+    console.warn('⚠️ Could not read settings file, skipping all webhooks.');
+}        // 2. Webhook לכל משתתף
         if (settings.participant_webhook_url) {
             for (const participantResult of individual_results) {
                 try {
