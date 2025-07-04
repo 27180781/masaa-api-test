@@ -426,24 +426,6 @@ try {
     // This catch block is for the fs.readFile(SETTINGS_DB_FILE,...)
     // It prevents a crash if the settings file is missing.
     console.warn('⚠️ Could not read settings file, skipping all webhooks.');
-}        // 2. Webhook לכל משתתף
-        if (settings.participant_webhook_url) {
-            for (const participantResult of individual_results) {
-                try {
-                    const payload = { ...participantResult, game_id, client_email };
-                    await axios.post(settings.participant_webhook_url, payload);
-                    console.log(`📢 Webhook נשלח עבור משתתף: ${participantResult.name}`);
-                } catch (e) { console.error(`❌ Error sending webhook for participant ${participantResult.name}: ${e.message}`); }
-            }
-        }
-
-        res.json({ status: 'success', message: 'Game results processed successfully' });
-
-    } catch (error) {
-        console.error('❌ Error processing results:', error);
-        res.status(500).json({ message: 'Internal Server Error' });
-    }
-});
 // ===================================================================
 //                          SERVER STARTUP
 // ===================================================================
