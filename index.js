@@ -4,7 +4,7 @@
 const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
-const cors = require('cors');
+const cors =require('cors');
 const axios = require('axios');
 
 const app = express();
@@ -50,22 +50,21 @@ app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'cli
 // ===================================================================
 // --- [חדש] ניהול הגדרות ---
 app.get('/api/settings', async (req, res) => {
-    try {
-        const settingsData = await fs.readFile(SETTINGS_DB_FILE, 'utf-8');
-        res.json(JSON.parse(settingsData));
-    } catch (e) {
+    try {
+        const settingsData = await fs.readFile(SETTINGS_DB_FILE, 'utf-8');
+        res.json(JSON.parse(settingsData));
+    } catch (e) {
         if (e.code === 'ENOENT') {
-            // אם הקובץ לא קיים, החזר הגדרות ברירת מחדל
             return res.json({ summary_webhook_url: '', participant_webhook_url: '' });
         }
         res.status(500).json({ message: 'Error reading settings' });
     }
 });
 app.post('/api/settings', async (req, res) => {
-    try {
-        await fs.writeFile(SETTINGS_DB_FILE, JSON.stringify(req.body, null, 2));
-        res.json({ message: 'Settings saved successfully' });
-    } catch (e) { res.status(500).json({ message: 'Error saving settings' }); }
+    try {
+        await fs.writeFile(SETTINGS_DB_FILE, JSON.stringify(req.body, null, 2));
+        res.json({ message: 'Settings saved successfully' });
+    } catch (e) { res.status(500).json({ message: 'Error saving settings' }); }
 });
 // --- ניהול שאלות ---
 app.get('/api/questions', async (req, res) => {
@@ -119,7 +118,7 @@ app.post('/api/games', async (req, res) => {
     try {
         let { game_id, client_email } = req.body;
         if (!game_id || !client_email) return res.status(400).json({ message: 'game_id and client_email are required' });
-game_id = game_id.trim();
+        game_id = game_id.trim();
         const data = await fs.readFile(GAMES_DB_FILE, 'utf-8');
         const games = JSON.parse(data);
         games.push({ game_id, client_email, createdAt: new Date() });
@@ -149,7 +148,6 @@ app.delete('/api/games/:gameId', async (req, res) => {
 app.get('/api/debug/view-file/games', async (req, res) => {
     try {
         const fileContent = await fs.readFile(GAMES_DB_FILE, 'utf-8');
-        // הגדרת כותרת כדי להבטיח שהעברית תוצג כראוי בדפדפן
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.send(fileContent);
     } catch (error) {
@@ -209,166 +207,73 @@ app.get('/api/results/:gameId', async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
-// ===================================================================
-//                  [חדש] פונקציית עזר לעיבוד תובנות
-// ===================================================================
+
+// --- פונקציות עזר לשליפת תוצאה ---
 function processInsightsForProfile(profile, insights) {
-    if (!insights || !profile) return null;
-
-    const getDominantElement = (p) => Object.keys(p).reduce((a, b) => p[a] > p[b] ? a : b);
-    const dominantElement = getDominantElement(profile);
-
-    const dominant_insight = (insights.dominant_insights && insights.dominant_insights[dominantElement]) 
-        ? insights.dominant_insights[dominantElement] 
-        : "לא נמצאה תובנה דומיננטית.";
-
-    const general_insights_text = [];
-    for (const [element, value] of Object.entries(profile)) {
-        if (insights.general_insights && insights.general_insights[element]) {
-            const sortedRules = insights.general_insights[element].sort((a,b) => b.min_percent - a.min_percent);
-            const applicableRule = sortedRules.find(rule => value >= rule.min_percent);
-            if (applicableRule) {
-                general_insights_text.push(`${element}: ${applicableRule.text}`);
-            }
-        }
-    }
-
-    return {
-        dominant_insight,
-        general_insights: general_insights_text,
-        full_text: `התכונה הדומיננטית שלך היא: ${dominant_insight}. פירוט נוסף: ${general_insights_text.join('. ')}.`
-    };
+    if (!insights || !profile) return null;
+    const getDominantElement = (p) => Object.keys(p).reduce((a, b) => p[a] > p[b] ? a : b);
+    const dominantElement = getDominantElement(profile);
+    const dominant_insight = (insights.dominant_insights && insights.dominant_insights[dominantElement]) ? insights.dominant_insights[dominantElement] : "לא נמצאה תובנה דומיננטית.";
+    const general_insights_text = [];
+    for (const [element, value] of Object.entries(profile)) {
+        if (insights.general_insights && insights.general_insights[element]) {
+            const sortedRules = insights.general_insights[element].sort((a, b) => b.min_percent - a.min_percent);
+            const applicableRule = sortedRules.find(rule => value >= rule.min_percent);
+            if (applicableRule) {
+                general_insights_text.push(`${element}: ${applicableRule.text}`);
+            }
+        }
+    }
+    return {
+        dominant_insight,
+        general_insights: general_insights_text,
+        full_text: `התכונה הדומיננטית שלך היא: ${dominant_insight}. פירוט נוסף: ${general_insights_text.join('. ')}.`
+    };
 }
-// ===================================================================
-//          [שדרוג] API ROUTES - שליפת תוצאה למשתמש קצה
-// ===================================================================
 
 async function findUserResult(searchKey, searchValue) {
-    const files = await fs.readdir(RESULTS_DIR);
-    for (const file of files) {
-        if (file.startsWith('results_') && file.endsWith('.json')) {
-            const content = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
-            const data = JSON.parse(content);
-            const user = data.individual_results.find(u => u[searchKey] === searchValue);
-            if (user) return user;
-        }
-    }
-    return null;
+    const files = await fs.readdir(RESULTS_DIR);
+    for (const file of files) {
+        if (file.startsWith('results_') && file.endsWith('.json')) {
+            const content = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
+            const data = JSON.parse(content);
+            const user = data.individual_results.find(u => u[searchKey] === searchValue);
+            if (user) return user;
+        }
+    }
+    return null;
 }
 
+// --- שליפת תוצאה למשתמש קצה ---
 app.get('/api/my-result/by-code/:accessCode', async (req, res) => {
-    try {
-        const userProfile = await findUserResult('access_code', req.params.accessCode);
-        if (!userProfile) return res.status(404).json({ message: 'Result not found' });
-
-        const insightsData = await fs.readFile(INSIGHTS_DB_FILE, 'utf-8');
-        const insights = JSON.parse(insightsData);
-        
-        const processedInsights = processInsightsForProfile(userProfile.profile, insights);
-        
-        res.json({ ...userProfile, insights: processedInsights });
-
-    } catch (e) {
-        console.error('❌ Error searching by code:', e);
-        res.status(500).json({ message: 'Internal Server Error' });
-    }
+    try {
+        const userProfile = await findUserResult('access_code', req.params.accessCode);
+        if (!userProfile) return res.status(404).json({ message: 'Result not found' });
+        const insightsData = await fs.readFile(INSIGHTS_DB_FILE, 'utf-8');
+        const insights = JSON.parse(insightsData);
+        const processedInsights = processInsightsForProfile(userProfile.profile, insights);
+        res.json({ ...userProfile, insights: processedInsights });
+    } catch (e) {
+        console.error('❌ Error searching by code:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 
 app.get('/api/my-result/by-phone/:phone', async (req, res) => {
-    try {
-        const userProfile = await findUserResult('id', req.params.phone);
-        if (!userProfile) return res.status(404).json({ message: 'Result not found' });
-        
-        const insightsData = await fs.readFile(INSIGHTS_DB_FILE, 'utf-8');
-        const insights = JSON.parse(insightsData);
-        
-        const processedInsights = processInsightsForProfile(userProfile.profile, insights);
-
-        res.json({ ...userProfile, insights: processedInsights });
-
-    } catch (e) {
-        console.error('❌ Error searching by phone:', e);
-        res.status(500).json({ message: 'Internal Server Error' });
-    }
-});
-app.post('/api/submit-results', async (req, res) => {
     try {
-        console.log('--- RAW DATA RECEIVED ---:', JSON.stringify(req.body, null, 2));
-        let { gameId: game_id, users } = req.body;
-        if (!game_id || !users) return res.status(400).json({ message: 'Invalid data structure' });
+        const userProfile = await findUserResult('id', req.params.phone);
+        if (!userProfile) return res.status(404).json({ message: 'Result not found' });
+        const insightsData = await fs.readFile(INSIGHTS_DB_FILE, 'utf-8');
+        const insights = JSON.parse(insightsData);
+        const processedInsights = processInsightsForProfile(userProfile.profile, insights);
+        res.json({ ...userProfile, insights: processedInsights });
+    } catch (e) {
+        console.error('❌ Error searching by phone:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+});
 
-        game_id = game_id.trim();
-
-        const gamesData = await fs.readFile(GAMES_DB_FILE, 'utf-8');
-        const games = JSON.parse(gamesData);
-        const currentGame = games.find(game => game.game_id === game_id);
-        const client_email = currentGame ? currentGame.client_email : null;
-
-        const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
-        const questions = JSON.parse(questionsData);
-        const questionMap = questions.reduce((map, q) => { map[q.question_id] = q; return map; }, {});
-
-        const individual_results = [];
-        const group_element_totals = {};
-        const game_grand_totals = { fire: 0, water: 0, air: 0, earth: 0 };
-
-        for (const [userId, participantData] of Object.entries(users)) {
-            const elementCounts = { fire: 0, water: 0, air: 0, earth: 0 };
-            let validAnswersCount = 0; // [תיקון] סופר חדש רק לתשובות שתואמות לקטלוג
-
-            if (participantData.answers) {
-                for (const [questionId, answerChoice] of Object.entries(participantData.answers)) {
-                    const question = questionMap[questionId];
-                    if (question && question.answers_mapping) {
-                        const element = question.answers_mapping[String(answerChoice)];
-                        if (element) {
-                            elementCounts[element]++;
-                            validAnswersCount++; // [תיקון] סופרים רק אם התשובה תקפה
-                        }
-                    }
-                }
-            }
-
-            // [תיקון] חישוב האחוזים מבוסס כעת רק על כמות התשובות התקפות
-            const profile = Object.keys(elementCounts).reduce((prof, key) => {
-                prof[key] = validAnswersCount > 0 ? (elementCounts[key] / validAnswersCount) * 100 : 0;
-                return prof;
-            }, {});
-
-            Object.keys(profile).forEach(elem => { game_grand_totals[elem] += profile[elem]; });
-            const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
-            individual_results.push({ id: userId, name: participantData.name, group_name: participantData.group_name, profile, access_code });
-
-            if (participantData.group_name) {
-                if (!group_element_totals[participantData.group_name]) {
-                    group_element_totals[participantData.group_name] = { counts: { fire: 0, water: 0, air: 0, earth: 0 }, participant_count: 0 };
-                }
-                Object.keys(profile).forEach(elem => group_element_totals[participantData.group_name].counts[elem] += profile[elem]);
-                group_element_totals[participantData.group_name].participant_count++;
-            }
-        }
-
-        const group_results = {};
-        for (const [groupName, data] of Object.entries(group_element_totals)) {
-            group_results[groupName] = {
-                profile: Object.keys(data.counts).reduce((prof, key) => {
-                    prof[key] = data.counts[key] / data.participant_count;
-                    return prof;
-                }, {}),
-                participant_count: data.participant_count
-            };
-        }
-
-        const totalParticipants = individual_results.length;
-        const game_average_profile = Object.keys(game_grand_totals).reduce((prof, key) => {
-            prof[key] = totalParticipants > 0 ? game_grand_totals[key] / totalParticipants : 0;
-            return prof;
-        }, {});
-
-        const finalResult = { game_id, client_email, processed_at: new Date().toISOString(), game_average_profile, individual_results, group_results };
-        const resultFilePath = path.join(RESULTS_DIR, `results_${game_id}.json`);
-        await fs.writeFile(resultFilePath, JSON.stringify(finalResult, null, 2));
-        console.log(`✅ תוצאות עבור משחק ${game_id} עובדו ונשמרו (עם מייל: ${client_email}).`);
+// --- עיבוד תוצאות ---
 app.post('/api/submit-results', async (req, res) => {
     try {
         console.log('--- RAW DATA RECEIVED ---:', JSON.stringify(req.body, null, 2));
@@ -460,7 +365,7 @@ app.post('/api/submit-results', async (req, res) => {
                     const encodedEmail = encodeURIComponent(client_email);
                     const encodedLink = encodeURIComponent(dashboardLink);
                     const finalWebhookUrl = `${baseWebhookUrl}&Email=${encodedEmail}&Text27=${encodedLink}`;
-                    
+
                     console.log(`📢 Sending GET webhook to: ${finalWebhookUrl}`);
                     await axios.get(finalWebhookUrl);
                     console.log(`📢 Webhook סיכום נשלח בהצלחה.`);
@@ -496,7 +401,9 @@ app.post('/api/submit-results', async (req, res) => {
         console.error('❌ Error processing results:', error);
         res.status(500).json({ message: 'Internal Server Error' });
     }
-});// ===================================================================
+});
+
+// ===================================================================
 //                          SERVER STARTUP
 // ===================================================================
 app.listen(PORT, '0.0.0.0', async () => {
