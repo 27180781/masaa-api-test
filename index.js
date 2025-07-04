@@ -117,7 +117,7 @@ app.get('/api/games', async (req, res) => {
 });
 app.post('/api/games', async (req, res) => {
     try {
-        const { game_id, client_email } = req.body;
+        let { game_id, client_email } = req.body;
         if (!game_id || !client_email) return res.status(400).json({ message: 'game_id and client_email are required' });
 game_id = game_id.trim();
         const data = await fs.readFile(GAMES_DB_FILE, 'utf-8');
