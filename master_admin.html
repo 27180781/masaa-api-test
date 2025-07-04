@@ -44,43 +44,47 @@
             </div>
     </div>
 
-    <script>
-        const summaryUrlInput = document.getElementById('summary_webhook_url');
-        const participantUrlInput = document.getElementById('participant_webhook_url');
+  <script>
+    const summaryUrlInput = document.getElementById('summary_webhook_url');
+    const participantUrlInput = document.getElementById('participant_webhook_url');
 
-        async function loadSettings() {
-            try {
-                const response = await fetch('/api/settings');
-                const settings = await response.json();
-                summaryUrlInput.value = settings.summary_webhook_url || '';
-                participantUrlInput.value = settings.participant_webhook_url || '';
-            } catch (e) { console.error("Could not load settings", e); }
-        }
+    async function loadSettings() {
+        try {
+            const response = await fetch('/api/settings');
+            const settings = await response.json();
+            summaryUrlInput.value = settings.summary_webhook_url || '';
+            participantUrlInput.value = settings.participant_webhook_url || '';
+        } catch (e) { console.error("Could not load settings", e); }
+    }
 
-        async function saveSetting(key) {
-            const inputElement = document.getElementById(key);
-            const value = inputElement.value;
+    async function saveSetting(key) {
+        const inputElement = document.getElementById(key);
+        const value = inputElement.value;
 
-            const settingToUpdate = {};
-            settingToUpdate[key] = value; // יצירת אובייקט עם שדה אחד בלבד
+        // [שינוי] קידוד הכתובת לפני השליחה
+        const encodedValue = btoa(value);
 
-            try {
-                const response = await fetch('/api/settings', {
-                    method: 'PATCH', // שימוש ב-PATCH לעדכון חלקי
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(settingToUpdate)
-                });
-                if (response.ok) {
-                    alert('ההגדרה נשמרה!');
-                } else {
-                    alert('שגיאה בשמירת ההגדרה.');
-                }
-            } catch(e) {
-                alert('שגיאת תקשורת.');
+        const settingToUpdate = {};
+        settingToUpdate[key] = encodedValue; 
+
+        try {
+            const response = await fetch('/api/settings', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settingToUpdate)
+            });
+            if (response.ok) {
+                alert('ההגדרה נשמרה!');
+            } else {
+                alert('שגיאה בשמירת ההגדרה.');
             }
+        } catch(e) {
+            alert('שגיאת תקשורת.');
+            console.error('Error saving settings:', e);
         }
+    }
 
-        loadSettings();
-    </script>
+    loadSettings();
+</script>
 </body>
 </html>

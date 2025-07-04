@@ -60,7 +60,6 @@ app.get('/api/settings', async (req, res) => {
     }
 });
 
-// [שדרוג] שימוש ב-PATCH לעדכון חלקי של ההגדרות
 app.patch('/api/settings', async (req, res) => {
     try {
         const updatedFields = req.body;
@@ -69,12 +68,24 @@ app.patch('/api/settings', async (req, res) => {
             const settingsData = await fs.readFile(SETTINGS_DB_FILE, 'utf-8');
             currentSettings = JSON.parse(settingsData);
         } catch (e) {
-            // אם הקובץ לא קיים, נמשיך עם אובייקט ריק
             if (e.code !== 'ENOENT') throw e;
         }
 
-        // מיזוג ההגדרות החדשות עם הישנות
-        const newSettings = { ...currentSettings, ...updatedFields };
+        const decodedFields = {};
+        for (const [key, value] of Object.entries(updatedFields)) {
+            if (key.includes('webhook_url') && value) {
+                try {
+                    decodedFields[key] = Buffer.from(value, 'base64').toString('utf8');
+                } catch (decodeError) {
+                    console.warn(`⚠️ Base64 decoding failed for key ${key}. Saving original value.`);
+                    decodedFields[key] = value;
+                }
+            } else {
+                decodedFields[key] = value;
+            }
+        }
+
+        const newSettings = { ...currentSettings, ...decodedFields };
 
         await fs.writeFile(SETTINGS_DB_FILE, JSON.stringify(newSettings, null, 2));
         res.json({ message: 'Settings updated successfully' });
