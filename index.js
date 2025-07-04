@@ -382,45 +382,7 @@ app.post('/api/submit-results', async (req, res) => {
         await fs.writeFile(resultFilePath, JSON.stringify(finalResult, null, 2));
         console.log(`✅ תוצאות עבור משחק ${game_id} עובדו ונשמרו.`);
 
-        // --- שליחת Webhooks על בסיס קובץ הגדרות ---
-        // (הקוד הזה נשאר זהה לגרסה הקודמת)
-        let settings = {};
-        try {
-            const settingsData = await fs.readFile(SETTINGS_DB_FILE, 'utf-8');
-            settings = JSON.parse(settingsData);
-        } catch (e) {
-            console.warn('⚠️ Could not read settings file, skipping webhooks.');
-        }
-        if (settings.summary_webhook_url) {
-            try {
-                const payload = { ...finalResult, client_dashboard_url: `https://masaa.clicker.co.il/results/${game_id}` };
-                await axios.post(settings.summary_webhook_url, payload);
-                console.log(`📢 Webhook סיכום נשלח בהצלחה`);
-            } catch (e) { console.error(`❌ Error sending summary webhook: ${e.message}`); }
-        }
-        if (settings.participant_webhook_url) {
-            for (const participantResult of individual_results) {
-                try {
-                    const payload = { ...participantResult, game_id, client_email };
-                    await axios.post(settings.participant_webhook_url, payload);
-                    console.log(`📢 Webhook נשלח עבור משתתף: ${participantResult.name}`);
-                } catch (e) { console.error(`❌ Error sending webhook for participant ${participantResult.name}: ${e.message}`); }
-            }
-        }
-
-        res.json({ status: 'success', message: 'Game results processed successfully' });
-    } catch (error) {
-        console.error('❌ Error processing results:', error);
-        res.status(500).json({ message: 'Internal Server Error' });
-    }
-});
-
-        const finalResult = { game_id, client_email, processed_at: new Date().toISOString(), individual_results, group_results };
-        const resultFilePath = path.join(RESULTS_DIR, `results_${game_id}.json`);
-        await fs.writeFile(resultFilePath, JSON.stringify(finalResult, null, 2));
-        console.log(`✅ תוצאות עבור משחק ${game_id} עובדו ונשמרו.`);
-
-        // --- שליחת Webhooks על בסיס קובץ הגדרות ---
+     // --- שליחת Webhooks על בסיס קובץ הגדרות ---
         let settings = {};
         try {
             const settingsData = await fs.readFile(SETTINGS_DB_FILE, 'utf-8');
@@ -450,6 +412,7 @@ app.post('/api/submit-results', async (req, res) => {
         }
 
         res.json({ status: 'success', message: 'Game results processed successfully' });
+
     } catch (error) {
         console.error('❌ Error processing results:', error);
         res.status(500).json({ message: 'Internal Server Error' });
