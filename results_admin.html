@@ -106,6 +106,16 @@
 
             const details = await resultsRes.json();
             const insights = await insightsRes.json();
+let generalAverageHtml = '';
+if (details.game_average_profile) {
+    generalAverageHtml = `
+        <h3>ממוצע כלל המשתתפים</h3>
+        <table>
+            <tr><th>פרופיל כללי</th></tr>
+            <tr><td>${createProfileBars(details.game_average_profile)}</td></tr>
+        </table>
+    `;
+}
             
             let individualHtml = '<h3>תוצאות אישיות, קודים ותובנות</h3><table><thead><tr><th>שם וקבוצה</th><th>קוד גישה</th><th>פרופיל באחוזים</th><th>ניתוח אישיות (תכונות)</th></tr></thead><tbody>';
             (details.individual_results || []).forEach(p => {
@@ -124,7 +134,7 @@
             }
             groupHtml += '</tbody></table>';
 
-            gameDetails.innerHTML = `<h2>פרטי משחק: ${details.game_id}</h2>` + groupHtml + individualHtml;
+           gameDetails.innerHTML = `<h2>פרטי משחק: ${details.game_id}</h2>` + generalAverageHtml + groupHtml + individualHtml;
 
         } catch (error) {
             console.error('Error fetching game details:', error);

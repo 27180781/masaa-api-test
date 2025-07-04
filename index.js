@@ -119,6 +119,7 @@ app.post('/api/games', async (req, res) => {
     try {
         const { game_id, client_email } = req.body;
         if (!game_id || !client_email) return res.status(400).json({ message: 'game_id and client_email are required' });
+game_id = game_id.trim();
         const data = await fs.readFile(GAMES_DB_FILE, 'utf-8');
         const games = JSON.parse(data);
         games.push({ game_id, client_email, createdAt: new Date() });
@@ -294,19 +295,25 @@ app.get('/api/my-result/by-phone/:phone', async (req, res) => {
 app.post('/api/submit-results', async (req, res) => {
     try {
         console.log('--- RAW DATA RECEIVED ---:', JSON.stringify(req.body, null, 2));
-        const { gameId: game_id, users } = req.body;
+        let { gameId: game_id, users } = req.body;
         if (!game_id || !users) return res.status(400).json({ message: 'Invalid data structure' });
 
-        // --- לוגיקת חישוב התוצאות (נשארת זהה) ---
+        game_id = game_id.trim();
+
         const gamesData = await fs.readFile(GAMES_DB_FILE, 'utf-8');
         const games = JSON.parse(gamesData);
         const currentGame = games.find(game => game.game_id === game_id);
         const client_email = currentGame ? currentGame.client_email : null;
+
         const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
         const questions = JSON.parse(questionsData);
         const questionMap = questions.reduce((map, q) => { map[q.question_id] = q; return map; }, {});
+
         const individual_results = [];
         const group_element_totals = {};
+        // [חדש] אובייקט לסכימת כל האחוזים במשחק
+        const game_grand_totals = { fire: 0, water: 0, air: 0, earth: 0 }; 
+
         for (const [userId, participantData] of Object.entries(users)) {
             const elementCounts = { fire: 0, water: 0, air: 0, earth: 0 };
             const totalAnswers = participantData.answers ? Object.keys(participantData.answers).length : 0;
@@ -324,7 +331,14 @@ app.post('/api/submit-results', async (req, res) => {
                 return prof;
             }, {});
             const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
+            
             individual_results.push({ id: userId, name: participantData.name, group_name: participantData.group_name, profile, access_code });
+
+            // [חדש] הוספת האחוזים של המשתתף לסך הכללי של המשחק
+            Object.keys(profile).forEach(elem => {
+                game_grand_totals[elem] += profile[elem];
+            });
+
             if (participantData.group_name) {
                 if (!group_element_totals[participantData.group_name]) {
                     group_element_totals[participantData.group_name] = { counts: { fire: 0, water: 0, air: 0, earth: 0 }, participant_count: 0 };
@@ -333,6 +347,7 @@ app.post('/api/submit-results', async (req, res) => {
                 group_element_totals[participantData.group_name].participant_count++;
             }
         }
+
         const group_results = {};
         for (const [groupName, data] of Object.entries(group_element_totals)) {
             group_results[groupName] = {
@@ -343,7 +358,62 @@ app.post('/api/submit-results', async (req, res) => {
                 participant_count: data.participant_count
             };
         }
-        // --- סוף לוגיקת החישוב ---
+
+        // [חדש] חישוב הממוצע הכללי של המשחק
+        const totalParticipants = individual_results.length;
+        const game_average_profile = {
+            fire: totalParticipants > 0 ? game_grand_totals.fire / totalParticipants : 0,
+            water: totalParticipants > 0 ? game_grand_totals.water / totalParticipants : 0,
+            air: totalParticipants > 0 ? game_grand_totals.air / totalParticipants : 0,
+            earth: totalParticipants > 0 ? game_grand_totals.earth / totalParticipants : 0,
+        };
+        
+        // הרכבת אובייקט התוצאה הסופי
+        const finalResult = {
+            game_id,
+            client_email,
+            processed_at: new Date().toISOString(),
+            game_average_profile, // <-- הוספנו את הממוצע הכללי
+            individual_results,
+            group_results
+        };
+
+        const resultFilePath = path.join(RESULTS_DIR, `results_${game_id}.json`);
+        await fs.writeFile(resultFilePath, JSON.stringify(finalResult, null, 2));
+        console.log(`✅ תוצאות עבור משחק ${game_id} עובדו ונשמרו.`);
+
+        // --- שליחת Webhooks על בסיס קובץ הגדרות ---
+        // (הקוד הזה נשאר זהה לגרסה הקודמת)
+        let settings = {};
+        try {
+            const settingsData = await fs.readFile(SETTINGS_DB_FILE, 'utf-8');
+            settings = JSON.parse(settingsData);
+        } catch (e) {
+            console.warn('⚠️ Could not read settings file, skipping webhooks.');
+        }
+        if (settings.summary_webhook_url) {
+            try {
+                const payload = { ...finalResult, client_dashboard_url: `https://masaa.clicker.co.il/results/${game_id}` };
+                await axios.post(settings.summary_webhook_url, payload);
+                console.log(`📢 Webhook סיכום נשלח בהצלחה`);
+            } catch (e) { console.error(`❌ Error sending summary webhook: ${e.message}`); }
+        }
+        if (settings.participant_webhook_url) {
+            for (const participantResult of individual_results) {
+                try {
+                    const payload = { ...participantResult, game_id, client_email };
+                    await axios.post(settings.participant_webhook_url, payload);
+                    console.log(`📢 Webhook נשלח עבור משתתף: ${participantResult.name}`);
+                } catch (e) { console.error(`❌ Error sending webhook for participant ${participantResult.name}: ${e.message}`); }
+            }
+        }
+
+        res.json({ status: 'success', message: 'Game results processed successfully' });
+    } catch (error) {
+        console.error('❌ Error processing results:', error);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+});
 
         const finalResult = { game_id, client_email, processed_at: new Date().toISOString(), individual_results, group_results };
         const resultFilePath = path.join(RESULTS_DIR, `results_${game_id}.json`);

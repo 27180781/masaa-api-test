@@ -51,6 +51,17 @@
                 const response = await fetch(`/api/results/${gameId}`);
                 if (!response.ok) throw new Error('Game not found or server error');
                 const details = await response.json();
+let generalAverageHtml = '';
+if (details.game_average_profile) {
+    // כאן נשתמש ב-h2 כדי לשמור על אחידות עם העיצוב הקיים בקובץ זה
+    generalAverageHtml = `
+        <h2>ממוצע כלל המשתתפים</h2>
+        <table>
+            <tr><th>פרופיל כללי</th></tr>
+            <tr><td>${createProfileBars(details.game_average_profile)}</td></tr>
+        </table>
+    `;
+}
                 
                 let groupHtml = '<h2>תוצאות קבוצתיות</h2><table><thead><tr><th>קבוצה</th><th>משתתפים</th><th>פרופיל ממוצע</th></tr></thead><tbody>';
                 for (const [groupName, data] of Object.entries(details.group_results || {})) {
@@ -64,7 +75,7 @@
                 });
                 individualHtml += '</tbody></table>';
 
-                gameDataContainer.innerHTML = `<h1>סיכום תוצאות למשחק: ${details.game_id}</h1>` + groupHtml + individualHtml;
+               gameDataContainer.innerHTML = `<h1>סיכום תוצאות למשחק: ${details.game_id}</h1>` + generalAverageHtml + groupHtml + individualHtml;
 
             } catch (error) {
                 console.error('Error fetching game details:', error);
