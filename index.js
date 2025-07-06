@@ -6,6 +6,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const cors =require('cors');
 const axios = require('axios');
+const { createCanvas } = require('canvas');
 
 const app = express();
 const PORT = 3000;
@@ -428,6 +429,75 @@ app.post('/api/submit-results', async (req, res) => {
     } catch (error) {
         console.error('❌ Error processing results:', error);
         res.status(500).json({ message: 'Internal Server Error' });
+    }
+});
+// ===================================================================
+//                  [חדש] API ליצירת תמונות
+// ===================================================================
+app.get('/images/game-summary/:gameId.png', async (req, res) => {
+    try {
+        const { gameId } = req.params;
+        const filePath = path.join(RESULTS_DIR, `results_${gameId}.json`);
+        const fileContent = await fs.readFile(filePath, 'utf-8');
+        const resultData = JSON.parse(fileContent);
+
+        const profile = resultData.game_average_profile;
+        if (!profile) {
+            return res.status(404).send('No average profile found for this game');
+        }
+
+        // הגדרות בסיסיות לתמונה
+        const width = 800;
+        const height = 400;
+        const canvas = createCanvas(width, height);
+        const context = canvas.getContext('2d');
+
+        // רקע
+        context.fillStyle = '#f7f8fb';
+        context.fillRect(0, 0, width, height);
+
+        // כותרת
+        context.fillStyle = '#1d5b85';
+        context.font = 'bold 30px Arial';
+        context.textAlign = 'center';
+        context.fillText(`סיכום תוצאות למשחק: ${gameId}`, width / 2, 50);
+
+        // ציור גרף עמודות פשוט
+        const elements = Object.keys(profile);
+        const barWidth = 100;
+        const barMargin = 50;
+        const chartHeight = 250;
+        const startX = (width - (elements.length * (barWidth + barMargin) - barMargin)) / 2;
+
+        elements.forEach((element, index) => {
+            const barHeight = (profile[element] / 100) * chartHeight;
+            const x = startX + index * (barWidth + barMargin);
+            const y = height - 70 - barHeight;
+
+            const color = {fire: '#e74c3c', water: '#3498db', air: '#f1c40f', earth: '#2ecc71'}[element] || '#ccc';
+            context.fillStyle = color;
+            context.fillRect(x, y, barWidth, barHeight);
+
+            // טקסט האחוזים
+            context.fillStyle = '#333';
+            context.font = 'bold 18px Arial';
+            context.fillText(`${profile[element].toFixed(1)}%`, x + barWidth / 2, y - 10);
+            
+            // טקסט שם היסוד
+            context.font = '20px Arial';
+            context.fillText(element, x + barWidth / 2, height - 30);
+        });
+
+        // הגשת התמונה לדפדפן
+        res.setHeader('Content-Type', 'image/png');
+        canvas.createPNGStream().pipe(res);
+
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            return res.status(404).send('Results not found for this game ID');
+        }
+        console.error('❌ Error generating image:', error);
+        res.status(500).send('Error generating image');
     }
 });
 
