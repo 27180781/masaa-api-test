@@ -1,6 +1,7 @@
 FROM node:20-alpine
 WORKDIR /app
 COPY package*.json ./
+RUN apk add --no-cache build-base cairo-dev jpeg-dev pango-dev giflib-dev python3
 RUN npm install
 COPY . .
 EXPOSE 3000
