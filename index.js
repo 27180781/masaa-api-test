@@ -13,7 +13,8 @@ const basicAuth = require('express-basic-auth');
 
 const app = express();
 const PORT = 3000;
-
+const logHistory = [];
+const MAX_LOG_HISTORY = 50;
 // ===================================================================
 //                             MIDDLEWARE
 // ===================================================================
@@ -305,6 +306,10 @@ app.post('/api/submit-results', async (req, res) => {
             type: 'SUBMIT_RESULTS',
             data: req.body // שולחים את המידע הגולמי שהתקבל
         };
+logHistory.push(logEntry);
+if (logHistory.length > MAX_LOG_HISTORY) {
+    logHistory.shift(); // מסיר את הלוג הישן ביותר
+}
         io.emit('new_log', logEntry); // שדר את הלוג לכל הלקוחות המחוברים
         let { gameId: game_id, users } = req.body;
         if (!game_id || !users) return res.status(400).json({ message: 'Invalid data structure' });
@@ -463,7 +468,11 @@ const io = new Server(server, {
         methods: ["GET", "POST"]
     }
 });
-
+io.on('connection', (socket) => {
+    console.log('✨ A user connected to the logs dashboard');
+    // שלח מיד את היסטוריית הלוגים רק ללקוח החדש שהתחבר
+    socket.emit('log_history', logHistory);
+});
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Server is running on port ${PORT}`);
   console.log(`🚀 MASTER ADMIN is available at http://localhost:${PORT}/master_admin`);

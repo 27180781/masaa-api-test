@@ -17,29 +17,43 @@
     <div id="logs-container"></div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const logsContainer = document.getElementById('logs-container');
-        const socket = io(); // התחבר לשרת
+       <script>
+    const logsContainer = document.getElementById('logs-container');
+    const socket = io(); // התחבר לשרת
 
-        socket.on('new_log', (logEntry) => {
-            console.log('Received log:', logEntry);
+    // פונקציית עזר להוספת רשומת לוג למסך
+    function addLogEntryToPage(logEntry) {
+        const entryDiv = document.createElement('div');
+        entryDiv.className = 'log-entry';
+        entryDiv.innerHTML = `
+            <div class="log-meta">
+                <span>${new Date(logEntry.timestamp).toLocaleString('he-IL')}</span> | 
+                <span>סוג: ${logEntry.type}</span>
+            </div>
+            <pre class="log-data">${JSON.stringify(logEntry.data, null, 2)}</pre>
+        `;
+        logsContainer.prepend(entryDiv);
+    }
 
-            const entryDiv = document.createElement('div');
-            entryDiv.className = 'log-entry';
-
-            entryDiv.innerHTML = `
-                <div class="log-meta">
-                    <span>${new Date(logEntry.timestamp).toLocaleString('he-IL')}</span> | 
-                    <span>סוג: ${logEntry.type}</span>
-                </div>
-                <pre class="log-data">${JSON.stringify(logEntry.data, null, 2)}</pre>
-            `;
-            logsContainer.prepend(entryDiv);
+    // 1. האזן להיסטוריה שנשלחת פעם אחת בעת החיבור
+    socket.on('log_history', (history) => {
+        console.log('Received log history:', history);
+        logsContainer.innerHTML = ''; // נקה את המסך למקרה שיש משהו
+        // הצג את ההיסטוריה בסדר הפוך (הישן למטה, החדש למעלה)
+        history.slice().reverse().forEach(logEntry => {
+            addLogEntryToPage(logEntry); 
         });
+    });
 
-        socket.on('connect', () => {
-            console.log('Connected to server!');
-        });
+    // 2. האזן ללוגים חדשים שמגיעים בזמן אמת
+    socket.on('new_log', (logEntry) => {
+        console.log('Received new live log:', logEntry);
+        addLogEntryToPage(logEntry); // הוסף את הלוג החדש לראש הרשימה
+    });
+
+    socket.on('connect', () => {
+        console.log('Connected to server!');
+    });
     </script>
 </body>
 </html>
