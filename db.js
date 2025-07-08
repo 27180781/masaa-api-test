@@ -70,6 +70,13 @@ function migrateData() {
         })();
         console.log(`Migrated ${data.length} questions.`);
     });
+
+migrate('settings', 'settings.json', (data) => {
+    // מייבאים את הנתונים כמו שהם מהקובץ הישן.
+    // הקידוד והפענוח רלוונטיים רק לשמירות חדשות מהדפדפן.
+    db.prepare('INSERT OR REPLACE INTO settings (id, settings_data) VALUES (1, ?)').run(JSON.stringify(data));
+    console.log('Migrated settings.');
+});
     
     migrate('insights', 'insights.json', (data) => {
         db.prepare('INSERT OR REPLACE INTO insights (id, insights_data) VALUES (1, ?)').run(JSON.stringify(data));
