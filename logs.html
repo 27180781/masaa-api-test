@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>לוגים בזמן אמת</title>
+    <style>
+        body { font-family: "Courier New", Courier, monospace; background-color: #1e1e1e; color: #d4d4d4; padding: 15px; margin: 0; }
+        h1 { color: #569cd6; border-bottom: 1px solid #444; padding-bottom: 10px; }
+        #logs-container { display: flex; flex-direction: column-reverse; } /* מציג את החדש ביותר למעלה */
+        .log-entry { background-color: #252526; border: 1px solid #333; border-radius: 5px; margin-bottom: 10px; padding: 10px; white-space: pre-wrap; word-wrap: break-word; }
+        .log-meta { color: #4ec9b0; font-weight: bold; }
+        .log-data { color: #9cdcfe; }
+    </style>
+</head>
+<body>
+    <h1>קונסול לוגים בזמן אמת</h1>
+    <div id="logs-container"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const logsContainer = document.getElementById('logs-container');
+        const socket = io(); // התחבר לשרת
+
+        socket.on('new_log', (logEntry) => {
+            console.log('Received log:', logEntry);
+
+            const entryDiv = document.createElement('div');
+            entryDiv.className = 'log-entry';
+
+            entryDiv.innerHTML = `
+                <div class="log-meta">
+                    <span>${new Date(logEntry.timestamp).toLocaleString('he-IL')}</span> | 
+                    <span>סוג: ${logEntry.type}</span>
+                </div>
+                <pre class="log-data">${JSON.stringify(logEntry.data, null, 2)}</pre>
+            `;
+            logsContainer.prepend(entryDiv);
+        });
+
+        socket.on('connect', () => {
+            console.log('Connected to server!');
+        });
+    </script>
+</body>
+</html>

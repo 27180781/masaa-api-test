@@ -7,6 +7,9 @@ const cors = require('cors');
 const axios = require('axios');
 const { createCanvas } = require('canvas');
 const db = require('./db.js');
+const http = require('http');
+const { Server } = require("socket.io");
+const basicAuth = require('express-basic-auth');
 
 const app = express();
 const PORT = 3000;
@@ -28,6 +31,16 @@ app.get('/results_admin', (req, res) => res.sendFile(path.join(__dirname, 'resul
 app.get('/insights_admin', (req, res) => res.sendFile(path.join(__dirname, 'insights_admin.html')));
 app.get('/my-result', (req, res) => res.sendFile(path.join(__dirname, 'my_result.html')));
 app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'client_dashboard.html')));
+// הגדר את שם המשתמש והסיסמה הרצויים
+const logUsers = { 'admin': 'CHANGE-THIS-PASSWORD' }; // 🚨 חובה להחליף לסיסמה חזקה!
+
+app.get('/logs', basicAuth({
+    users: logUsers,
+    challenge: true, // יקפיץ חלון לדרוש שם משתמש וסיסמה
+    unauthorizedResponse: 'Unauthorized access'
+}), (req, res) => {
+    res.sendFile(path.join(__dirname, 'logs.html'));
+});
 
 // ===================================================================
 //                  API ROUTES
@@ -276,6 +289,12 @@ app.get('/api/my-result/by-phone/:phone', (req, res) => {
 // --- עיבוד תוצאות ---
 app.post('/api/submit-results', async (req, res) => {
     try {
+        const logEntry = {
+            timestamp: new Date().toISOString(),
+            type: 'SUBMIT_RESULTS',
+            data: req.body // שולחים את המידע הגולמי שהתקבל
+        };
+        io.emit('new_log', logEntry); // שדר את הלוג לכל הלקוחות המחוברים
         let { gameId: game_id, users } = req.body;
         if (!game_id || !users) return res.status(400).json({ message: 'Invalid data structure' });
         game_id = game_id.trim();
@@ -426,7 +445,15 @@ app.get('/images/game-summary/:gameId.png', (req, res) => {
 // ===================================================================
 //                          SERVER STARTUP
 // ===================================================================
-app.listen(PORT, '0.0.0.0', () => {
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
+
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Server is running on port ${PORT}`);
   console.log(`🚀 MASTER ADMIN is available at http://localhost:${PORT}/master_admin`);
 });
