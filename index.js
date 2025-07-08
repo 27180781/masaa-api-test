@@ -274,7 +274,7 @@ app.get('/api/my-result/by-phone/:phone', (req, res) => {
 });
 
 // --- עיבוד תוצאות ---
-app.post('/api/submit-results', (req, res) => {
+app.post('/api/submit-results', async (req, res) => {
     try {
         let { gameId: game_id, users } = req.body;
         if (!game_id || !users) return res.status(400).json({ message: 'Invalid data structure' });
