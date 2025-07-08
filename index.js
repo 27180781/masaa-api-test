@@ -2,21 +2,14 @@
 //                                SETUP
 // ===================================================================
 const express = require('express');
-const fs = require('fs').promises;
 const path = require('path');
-const cors =require('cors');
+const cors = require('cors');
 const axios = require('axios');
 const { createCanvas } = require('canvas');
+const db = require('./db.js');
 
 const app = express();
 const PORT = 3000;
-
-const DATA_DIR = '/app/data'; 
-const GAMES_DB_FILE = path.join(DATA_DIR, 'games.json');
-const QUESTIONS_DB_FILE = path.join(DATA_DIR, 'questions.json');
-const INSIGHTS_DB_FILE = path.join(DATA_DIR, 'insights.json');
-const RESULTS_DIR = path.join(DATA_DIR, 'results');
-const SETTINGS_DB_FILE = path.join(DATA_DIR, 'settings.json'); 
 
 // ===================================================================
 //                             MIDDLEWARE
@@ -24,22 +17,12 @@ const SETTINGS_DB_FILE = path.join(DATA_DIR, 'settings.json');
 app.use(cors());
 app.use(express.json());
 
-// פונקציית עזר שמוודאת שקובץ או תיקייה קיימים
-const ensurePathExists = async (filePath, isDirectory = false, defaultContent = '[]') => {
-  try {
-    await fs.access(filePath);
-  } catch (error) {
-    if (isDirectory) await fs.mkdir(filePath, { recursive: true });
-    else await fs.writeFile(filePath, defaultContent);
-  }
-};
-
 // ===================================================================
 //                      PUBLIC & ADMIN ROUTES
 // ===================================================================
-app.get('/', (req, res) => res.redirect('/master_admin')); 
+app.get('/', (req, res) => res.redirect('/master_admin'));
 app.get('/master_admin', (req, res) => res.sendFile(path.join(__dirname, 'master_admin.html')));
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html'))); 
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('/games_admin', (req, res) => res.sendFile(path.join(__dirname, 'games_admin.html')));
 app.get('/results_admin', (req, res) => res.sendFile(path.join(__dirname, 'results_admin.html')));
 app.get('/insights_admin', (req, res) => res.sendFile(path.join(__dirname, 'insights_admin.html')));
@@ -49,83 +32,80 @@ app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'cli
 // ===================================================================
 //                  API ROUTES
 // ===================================================================
+
 // --- ניהול הגדרות ---
-app.get('/api/settings', async (req, res) => {
+app.get('/api/settings', (req, res) => {
     try {
-        const settingsData = await fs.readFile(SETTINGS_DB_FILE, 'utf-8');
-        res.json(JSON.parse(settingsData));
+        const row = db.prepare('SELECT settings_data FROM settings WHERE id = 1').get();
+        res.json(row ? JSON.parse(row.settings_data) : {});
     } catch (e) {
-        if (e.code === 'ENOENT') return res.json({}); // אם הקובץ לא קיים, החזר אובייקט ריק
-        console.error('❌ Error reading settings file:', e);
+        console.error('❌ Error reading settings:', e);
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
 
-app.patch('/api/settings', async (req, res) => {
+app.patch('/api/settings', (req, res) => {
     try {
         const updatedFields = req.body;
-        let currentSettings = {};
-        try {
-            const settingsData = await fs.readFile(SETTINGS_DB_FILE, 'utf-8');
-            currentSettings = JSON.parse(settingsData);
-        } catch (e) {
-            if (e.code !== 'ENOENT') throw e;
-        }
+        const row = db.prepare('SELECT settings_data FROM settings WHERE id = 1').get();
+        let currentSettings = row ? JSON.parse(row.settings_data) : {};
 
         const decodedFields = {};
         for (const [key, value] of Object.entries(updatedFields)) {
             if (key.includes('webhook_url') && value) {
                 try {
                     decodedFields[key] = Buffer.from(value, 'base64').toString('utf8');
-                } catch (decodeError) {
-                    console.warn(`⚠️ Base64 decoding failed for key ${key}. Saving original value.`);
-                    decodedFields[key] = value;
-                }
+                } catch { decodedFields[key] = value; }
             } else {
                 decodedFields[key] = value;
             }
         }
 
         const newSettings = { ...currentSettings, ...decodedFields };
-
-        await fs.writeFile(SETTINGS_DB_FILE, JSON.stringify(newSettings, null, 2));
+        db.prepare('INSERT OR REPLACE INTO settings (id, settings_data) VALUES (1, ?)').run(JSON.stringify(newSettings));
         res.json({ message: 'Settings updated successfully' });
     } catch (e) {
         console.error('❌ Error updating settings:', e);
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
+
 // --- ניהול שאלות ---
-app.get('/api/questions', async (req, res) => {
+app.get('/api/questions', (req, res) => {
     try {
-        const data = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
-        res.json(JSON.parse(data));
+        const rows = db.prepare('SELECT question_id, question_text, answers_mapping FROM questions').all();
+        const questions = rows.map(r => ({ ...r, answers_mapping: JSON.parse(r.answers_mapping) }));
+        res.json(questions);
     } catch (e) {
-        if (e.code === 'ENOENT') return res.json([]);
-        console.error('❌ Error reading questions file:', e);
+        console.error('❌ Error reading questions:', e);
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
-app.post('/api/questions', async (req, res) => {
+
+app.post('/api/questions', (req, res) => {
     try {
-        const data = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
-        const questions = JSON.parse(data);
-        questions.push(req.body);
-        await fs.writeFile(QUESTIONS_DB_FILE, JSON.stringify(questions, null, 2));
-        res.status(201).json({ message: 'Question added' });
+        const { question_id, question_text, answers_mapping } = req.body;
+        if (!question_id || !question_text || !answers_mapping) {
+            return res.status(400).json({ message: 'Invalid question format' });
+        }
+        db.prepare('INSERT OR REPLACE INTO questions (question_id, question_text, answers_mapping) VALUES (?, ?, ?)')
+          .run(question_id, question_text, JSON.stringify(answers_mapping));
+        res.status(201).json({ message: 'Question added/updated' });
     } catch (e) {
         console.error('❌ Error saving question:', e);
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
-app.delete('/api/questions/:questionId', async (req, res) => {
+
+app.delete('/api/questions/:questionId', (req, res) => {
     try {
         const { questionId } = req.params;
-        const data = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
-        let questions = JSON.parse(data);
-        const newQuestions = questions.filter(q => q.question_id !== questionId);
-        await fs.writeFile(QUESTIONS_DB_FILE, JSON.stringify(newQuestions, null, 2));
-        res.json({ message: 'Question deleted' });
+        const info = db.prepare('DELETE FROM questions WHERE question_id = ?').run(questionId);
+        if (info.changes > 0) {
+            res.json({ message: `Question ${questionId} deleted` });
+        } else {
+            res.status(404).json({ message: 'Question not found' });
+        }
     } catch (e) {
         console.error('❌ Error deleting question:', e);
         res.status(500).json({ message: 'Internal Server Error' });
@@ -133,71 +113,63 @@ app.delete('/api/questions/:questionId', async (req, res) => {
 });
 
 // --- ניהול משחקים ---
-app.get('/api/games', async (req, res) => {
+app.get('/api/games', (req, res) => {
     try {
-        const data = await fs.readFile(GAMES_DB_FILE, 'utf-8');
-        res.json(JSON.parse(data));
+        const games = db.prepare('SELECT game_id, client_email, created_at FROM games ORDER BY created_at DESC').all();
+        res.json(games);
     } catch (e) {
-        if (e.code === 'ENOENT') return res.json([]);
-        console.error('❌ Error reading games file:', e);
+        console.error('❌ Error reading games:', e);
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
-app.post('/api/games', async (req, res) => {
+
+app.post('/api/games', (req, res) => {
     try {
         let { game_id, client_email } = req.body;
         if (!game_id || !client_email) return res.status(400).json({ message: 'game_id and client_email are required' });
         game_id = game_id.trim();
-        const data = await fs.readFile(GAMES_DB_FILE, 'utf-8');
-        const games = JSON.parse(data);
-        games.push({ game_id, client_email, createdAt: new Date() });
-        await fs.writeFile(GAMES_DB_FILE, JSON.stringify(games, null, 2));
+        db.prepare('INSERT INTO games (game_id, client_email) VALUES (?, ?)')
+          .run(game_id, client_email);
         res.status(201).json({ message: 'Game saved' });
     } catch (e) {
+        // Handle unique constraint violation for game_id
+        if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+            return res.status(409).json({ message: `Game with ID '${e.value}' already exists.` });
+        }
         console.error('❌ Error saving game:', e);
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
-app.delete('/api/games/:gameId', async (req, res) => {
+
+app.delete('/api/games/:gameId', (req, res) => {
     try {
         const { gameId } = req.params;
-        const data = await fs.readFile(GAMES_DB_FILE, 'utf-8');
-        let games = JSON.parse(data);
-        const newGames = games.filter(g => g.game_id !== gameId);
-        await fs.writeFile(GAMES_DB_FILE, JSON.stringify(newGames, null, 2));
-        res.json({ message: 'Game deleted' });
+        const info = db.prepare('DELETE FROM games WHERE game_id = ?').run(gameId);
+        if (info.changes > 0) {
+            res.json({ message: `Game ${gameId} deleted` });
+        } else {
+            res.status(404).json({ message: 'Game not found' });
+        }
     } catch (e) {
         console.error('❌ Error deleting game:', e);
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
-// ===================================================================
-//                  [חדש וזמני] API לצורכי דיבאגינג
-// ===================================================================
-app.get('/api/debug/view-file/games', async (req, res) => {
-    try {
-        const fileContent = await fs.readFile(GAMES_DB_FILE, 'utf-8');
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.send(fileContent);
-    } catch (error) {
-        res.status(500).json({ error: "Could not read games.json file", details: error.message });
-    }
-});
 
 // --- ניהול תובנות ---
-app.get('/api/insights', async (req, res) => {
+app.get('/api/insights', (req, res) => {
     try {
-        const data = await fs.readFile(INSIGHTS_DB_FILE, 'utf-8');
-        res.json(JSON.parse(data));
+        const row = db.prepare('SELECT insights_data FROM insights WHERE id = 1').get();
+        res.json(row ? JSON.parse(row.insights_data) : {});
     } catch (e) {
-        if (e.code === 'ENOENT') return res.json({});
-        console.error('❌ Error reading insights file:', e);
+        console.error('❌ Error reading insights:', e);
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
-app.post('/api/insights', async (req, res) => {
+app.post('/api/insights', (req, res) => {
     try {
-        await fs.writeFile(INSIGHTS_DB_FILE, JSON.stringify(req.body, null, 2));
+        db.prepare('INSERT OR REPLACE INTO insights (id, insights_data) VALUES (1, ?)')
+          .run(JSON.stringify(req.body));
         res.json({ message: 'Insights saved' });
     } catch (e) {
         console.error('❌ Error saving insights:', e);
@@ -206,33 +178,30 @@ app.post('/api/insights', async (req, res) => {
 });
 
 // --- צפייה בתוצאות (אדמין) ---
-app.get('/api/results', async (req, res) => {
+app.get('/api/results', (req, res) => {
     try {
-        await ensurePathExists(RESULTS_DIR, true);
-        const files = await fs.readdir(RESULTS_DIR);
-        const summaries = await Promise.all(files.map(async file => {
-            if (file.startsWith('results_') && file.endsWith('.json')) {
-                const content = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
-                const data = JSON.parse(content);
-                return { game_id: data.game_id, client_email: data.client_email, processed_at: data.processed_at };
-            }
-            return null;
-        }));
-        res.json(summaries.filter(Boolean).sort((a, b) => new Date(b.processed_at) - new Date(a.processed_at)));
+        const rows = db.prepare('SELECT result_data FROM results').all();
+        const summaries = rows.map(row => {
+            const data = JSON.parse(row.result_data);
+            return { game_id: data.game_id, client_email: data.client_email, processed_at: data.processed_at };
+        }).sort((a, b) => new Date(b.processed_at) - new Date(a.processed_at));
+        res.json(summaries);
     } catch (e) {
-        if (e.code === 'ENOENT') return res.json([]);
         console.error('❌ Error listing results:', e);
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
-app.get('/api/results/:gameId', async (req, res) => {
+app.get('/api/results/:gameId', (req, res) => {
     try {
         const { gameId } = req.params;
-        const content = await fs.readFile(path.join(RESULTS_DIR, `results_${gameId}.json`), 'utf-8');
-        res.json(JSON.parse(content));
+        const row = db.prepare('SELECT result_data FROM results WHERE game_id = ?').get(gameId);
+        if (row) {
+            res.json(JSON.parse(row.result_data));
+        } else {
+            res.status(404).json({ message: 'Result not found' });
+        }
     } catch (e) {
-        if (e.code === 'ENOENT') return res.status(404).json({ message: 'Not found' });
-        console.error('❌ Error reading result file:', e);
+        console.error('❌ Error reading result:', e);
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
@@ -260,12 +229,11 @@ function processInsightsForProfile(profile, insights) {
     };
 }
 
-async function findUserResult(searchKey, searchValue) {
-    const files = await fs.readdir(RESULTS_DIR);
-    for (const file of files) {
-        if (file.startsWith('results_') && file.endsWith('.json')) {
-            const content = await fs.readFile(path.join(RESULTS_DIR, file), 'utf-8');
-            const data = JSON.parse(content);
+function findUserResult(searchKey, searchValue) {
+    const allResults = db.prepare('SELECT result_data FROM results').all();
+    for (const result of allResults) {
+        const data = JSON.parse(result.result_data);
+        if (data.individual_results) {
             const user = data.individual_results.find(u => u[searchKey] === searchValue);
             if (user) return user;
         }
@@ -274,12 +242,14 @@ async function findUserResult(searchKey, searchValue) {
 }
 
 // --- שליפת תוצאה למשתמש קצה ---
-app.get('/api/my-result/by-code/:accessCode', async (req, res) => {
+app.get('/api/my-result/by-code/:accessCode', (req, res) => {
     try {
-        const userProfile = await findUserResult('access_code', req.params.accessCode);
+        const userProfile = findUserResult('access_code', req.params.accessCode);
         if (!userProfile) return res.status(404).json({ message: 'Result not found' });
-        const insightsData = await fs.readFile(INSIGHTS_DB_FILE, 'utf-8');
-        const insights = JSON.parse(insightsData);
+        
+        const insightsRow = db.prepare('SELECT insights_data FROM insights WHERE id = 1').get();
+        const insights = insightsRow ? JSON.parse(insightsRow.insights_data) : {};
+        
         const processedInsights = processInsightsForProfile(userProfile.profile, insights);
         res.json({ ...userProfile, insights: processedInsights });
     } catch (e) {
@@ -287,13 +257,14 @@ app.get('/api/my-result/by-code/:accessCode', async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
-
-app.get('/api/my-result/by-phone/:phone', async (req, res) => {
+app.get('/api/my-result/by-phone/:phone', (req, res) => {
     try {
-        const userProfile = await findUserResult('id', req.params.phone);
+        const userProfile = findUserResult('id', req.params.phone);
         if (!userProfile) return res.status(404).json({ message: 'Result not found' });
-        const insightsData = await fs.readFile(INSIGHTS_DB_FILE, 'utf-8');
-        const insights = JSON.parse(insightsData);
+
+        const insightsRow = db.prepare('SELECT insights_data FROM insights WHERE id = 1').get();
+        const insights = insightsRow ? JSON.parse(insightsRow.insights_data) : {};
+
         const processedInsights = processInsightsForProfile(userProfile.profile, insights);
         res.json({ ...userProfile, insights: processedInsights });
     } catch (e) {
@@ -303,22 +274,20 @@ app.get('/api/my-result/by-phone/:phone', async (req, res) => {
 });
 
 // --- עיבוד תוצאות ---
-app.post('/api/submit-results', async (req, res) => {
+app.post('/api/submit-results', (req, res) => {
     try {
-        console.log('--- RAW DATA RECEIVED ---:', JSON.stringify(req.body, null, 2));
         let { gameId: game_id, users } = req.body;
         if (!game_id || !users) return res.status(400).json({ message: 'Invalid data structure' });
-
         game_id = game_id.trim();
 
-        const gamesData = await fs.readFile(GAMES_DB_FILE, 'utf-8');
-        const games = JSON.parse(gamesData);
-        const currentGame = games.find(game => game.game_id === game_id);
-        const client_email = currentGame ? currentGame.client_email : null;
-
-        const questionsData = await fs.readFile(QUESTIONS_DB_FILE, 'utf-8');
-        const questions = JSON.parse(questionsData);
-        const questionMap = questions.reduce((map, q) => { map[q.question_id] = q; return map; }, {});
+        const gameRow = db.prepare('SELECT client_email FROM games WHERE game_id = ?').get(game_id);
+        const client_email = gameRow ? gameRow.client_email : null;
+        
+        const questionRows = db.prepare('SELECT question_id, answers_mapping FROM questions').all();
+        const questionMap = questionRows.reduce((map, q) => {
+            map[q.question_id] = { answers_mapping: JSON.parse(q.answers_mapping) };
+            return map;
+        }, {});
 
         const individual_results = [];
         const group_element_totals = {};
@@ -327,7 +296,6 @@ app.post('/api/submit-results', async (req, res) => {
         for (const [userId, participantData] of Object.entries(users)) {
             const elementCounts = { fire: 0, water: 0, air: 0, earth: 0 };
             let validAnswersCount = 0;
-
             if (participantData.answers) {
                 for (const [questionId, answerChoice] of Object.entries(participantData.answers)) {
                     const question = questionMap[questionId];
@@ -340,12 +308,10 @@ app.post('/api/submit-results', async (req, res) => {
                     }
                 }
             }
-
             const profile = Object.keys(elementCounts).reduce((prof, key) => {
                 prof[key] = validAnswersCount > 0 ? (elementCounts[key] / validAnswersCount) * 100 : 0;
                 return prof;
             }, {});
-
             Object.keys(profile).forEach(elem => { game_grand_totals[elem] += profile[elem]; });
             const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
             individual_results.push({ id: userId, name: participantData.name, group_name: participantData.group_name, profile, access_code });
@@ -358,111 +324,77 @@ app.post('/api/submit-results', async (req, res) => {
                 group_element_totals[participantData.group_name].participant_count++;
             }
         }
-
+        
         const group_results = {};
         for (const [groupName, data] of Object.entries(group_element_totals)) {
-            group_results[groupName] = {
-                profile: Object.keys(data.counts).reduce((prof, key) => {
-                    prof[key] = data.counts[key] / data.participant_count;
-                    return prof;
-                }, {}),
-                participant_count: data.participant_count
-            };
+            group_results[groupName] = { profile: Object.keys(data.counts).reduce((prof, key) => { prof[key] = data.counts[key] / data.participant_count; return prof; }, {}), participant_count: data.participant_count };
         }
-
+        
         const totalParticipants = individual_results.length;
         const game_average_profile = Object.keys(game_grand_totals).reduce((prof, key) => {
             prof[key] = totalParticipants > 0 ? game_grand_totals[key] / totalParticipants : 0;
             return prof;
         }, {});
-
+        
         const finalResult = { game_id, client_email, processed_at: new Date().toISOString(), game_average_profile, individual_results, group_results };
-        const resultFilePath = path.join(RESULTS_DIR, `results_${game_id}.json`);
-        await fs.writeFile(resultFilePath, JSON.stringify(finalResult, null, 2));
-        console.log(`✅ תוצאות עבור משחק ${game_id} עובדו ונשמרו (עם מייל: ${client_email}).`);
 
-        // --- שליחת Webhooks על בסיס קובץ הגדרות ---
-        try {
-            const settingsData = await fs.readFile(SETTINGS_DB_FILE, 'utf-8');
-            const settings = JSON.parse(settingsData);
+        db.prepare('INSERT OR REPLACE INTO results (game_id, result_data) VALUES (?, ?)')
+          .run(game_id, JSON.stringify(finalResult));
+        console.log(`✅ Game results for ${game_id} processed and saved to DB.`);
 
-            // 1. Webhook סיכום למנהל המשחק (בשיטת GET)
-            const baseWebhookUrl = settings.summary_webhook_url;
-            if (baseWebhookUrl && client_email) {
-                try {
-                    const dashboardLink = `https://masaa.clicker.co.il/results/${game_id}`;
-                    const encodedEmail = encodeURIComponent(client_email);
-                    const encodedLink = encodeURIComponent(dashboardLink);
-                    const finalWebhookUrl = `${baseWebhookUrl}&Email=${encodedEmail}&Text27=${encodedLink}`;
+        const settingsRow = db.prepare('SELECT settings_data FROM settings WHERE id = 1').get();
+        const settings = settingsRow ? JSON.parse(settingsRow.settings_data) : {};
 
-                    console.log(`📢 Sending GET webhook to: ${finalWebhookUrl}`);
-                    await axios.get(finalWebhookUrl);
-                    console.log(`📢 Webhook סיכום נשלח בהצלחה.`);
-                } catch (webhookError) {
-                    console.error(`❌ Error sending summary GET webhook: ${webhookError.message}`);
-                }
-            } else {
-                if (game_id) console.warn('⚠️ Summary Webhook URL or Client Email not defined. Skipping summary webhook.');
-            }
-
-            // 2. Webhook לכל משתתף (בשיטת POST)
-            const participantWebhookUrl = settings.participant_webhook_url;
-            if (participantWebhookUrl) {
-                for (const participantResult of individual_results) {
-                    try {
-                        const payload = { ...participantResult, game_id, client_email };
-                        await axios.post(participantWebhookUrl, payload);
-                        console.log(`📢 Webhook נשלח עבור משתתף: ${participantResult.name}`);
-                    } catch (e) {
-                        console.error(`❌ Error sending webhook for participant ${participantResult.name}: ${e.message}`);
-                    }
-                }
-            } else {
-                if (game_id) console.warn('⚠️ Participant Webhook URL not defined. Skipping participant webhooks.');
-            }
-        } catch (e) {
-            console.warn('⚠️ Could not read settings file, skipping all webhooks.');
+        if (settings.summary_webhook_url && client_email) {
+            try {
+                const dashboardLink = `https://masaa.clicker.co.il/results/${game_id}`;
+                const encodedEmail = encodeURIComponent(client_email);
+                const encodedLink = encodeURIComponent(dashboardLink);
+                const finalWebhookUrl = `${settings.summary_webhook_url}&Email=${encodedEmail}&Text27=${encodedLink}`;
+                console.log(`📢 Sending GET webhook to: ${finalWebhookUrl}`);
+                await axios.get(finalWebhookUrl);
+                console.log(`📢 Webhook סיכום נשלח בהצלחה.`);
+            } catch (webhookError) { console.error(`❌ Error sending summary GET webhook: ${webhookError.message}`); }
         }
-
+        if (settings.participant_webhook_url) {
+            for (const participantResult of individual_results) {
+                try {
+                    const payload = { ...participantResult, game_id, client_email };
+                    await axios.post(settings.participant_webhook_url, payload);
+                    console.log(`📢 Webhook נשלח עבור משתתף: ${participantResult.name}`);
+                } catch (e) { console.error(`❌ Error sending webhook for participant ${participantResult.name}: ${e.message}`); }
+            }
+        }
         res.json({ status: 'success', message: 'Game results processed successfully' });
-
     } catch (error) {
         console.error('❌ Error processing results:', error);
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
+
 // ===================================================================
-//                  [חדש] API ליצירת תמונות
+//                  API ליצירת תמונות
 // ===================================================================
-app.get('/images/game-summary/:gameId.png', async (req, res) => {
+app.get('/images/game-summary/:gameId.png', (req, res) => {
     try {
         const { gameId } = req.params;
-        const filePath = path.join(RESULTS_DIR, `results_${gameId}.json`);
-        const fileContent = await fs.readFile(filePath, 'utf-8');
-        const resultData = JSON.parse(fileContent);
+        const row = db.prepare('SELECT result_data FROM results WHERE game_id = ?').get(gameId);
+        if (!row) return res.status(404).send('Results not found for this game ID');
 
+        const resultData = JSON.parse(row.result_data);
         const profile = resultData.game_average_profile;
-        if (!profile) {
-            return res.status(404).send('No average profile found for this game');
-        }
+        if (!profile) return res.status(404).send('No average profile found for this game');
 
-        // הגדרות בסיסיות לתמונה
         const width = 800;
         const height = 400;
         const canvas = createCanvas(width, height);
         const context = canvas.getContext('2d');
-
-        // רקע
         context.fillStyle = '#f7f8fb';
         context.fillRect(0, 0, width, height);
-
-        // כותרת
         context.fillStyle = '#1d5b85';
         context.font = 'bold 30px Arial';
         context.textAlign = 'center';
         context.fillText(`סיכום תוצאות למשחק: ${gameId}`, width / 2, 50);
-
-        // ציור גרף עמודות פשוט
         const elements = Object.keys(profile);
         const barWidth = 100;
         const barMargin = 50;
@@ -473,29 +405,19 @@ app.get('/images/game-summary/:gameId.png', async (req, res) => {
             const barHeight = (profile[element] / 100) * chartHeight;
             const x = startX + index * (barWidth + barMargin);
             const y = height - 70 - barHeight;
-
             const color = {fire: '#e74c3c', water: '#3498db', air: '#f1c40f', earth: '#2ecc71'}[element] || '#ccc';
             context.fillStyle = color;
             context.fillRect(x, y, barWidth, barHeight);
-
-            // טקסט האחוזים
             context.fillStyle = '#333';
             context.font = 'bold 18px Arial';
             context.fillText(`${profile[element].toFixed(1)}%`, x + barWidth / 2, y - 10);
-            
-            // טקסט שם היסוד
             context.font = '20px Arial';
             context.fillText(element, x + barWidth / 2, height - 30);
         });
 
-        // הגשת התמונה לדפדפן
         res.setHeader('Content-Type', 'image/png');
         canvas.createPNGStream().pipe(res);
-
     } catch (error) {
-        if (error.code === 'ENOENT') {
-            return res.status(404).send('Results not found for this game ID');
-        }
         console.error('❌ Error generating image:', error);
         res.status(500).send('Error generating image');
     }
@@ -504,15 +426,7 @@ app.get('/images/game-summary/:gameId.png', async (req, res) => {
 // ===================================================================
 //                          SERVER STARTUP
 // ===================================================================
-app.listen(PORT, '0.0.0.0', async () => {
-    await ensurePathExists(DATA_DIR, true);
-    await ensurePathExists(GAMES_DB_FILE, false);
-    await ensurePathExists(QUESTIONS_DB_FILE, false);
-    await ensurePathExists(RESULTS_DIR, true);
-    await ensurePathExists(INSIGHTS_DB_FILE, false, JSON.stringify({ dominant_insights: {}, general_insights: {} }));
-    await ensurePathExists(SETTINGS_DB_FILE, false, JSON.stringify({ summary_webhook_url: '', participant_webhook_url: '' }));
-
-    console.log(`✅ Server is running on port ${PORT}`);
-    console.log(`🗄️ Persistent data directory is at: ${DATA_DIR}`);
-    console.log(`🚀 MASTER ADMIN is available at http://localhost:${PORT}/master_admin`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Server is running on port ${PORT}`);
+  console.log(`🚀 MASTER ADMIN is available at http://localhost:${PORT}/master_admin`);
 });
