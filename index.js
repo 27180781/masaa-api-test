@@ -30,7 +30,7 @@ app.get('/insights_admin', (req, res) => res.sendFile(path.join(__dirname, 'insi
 app.get('/my-result', (req, res) => res.sendFile(path.join(__dirname, 'my_result.html')));
 app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'client_dashboard.html')));
 // הגדר את שם המשתמש והסיסמה הרצויים
-const logUsers = { 'admin': 'CHANGE-THIS-PASSWORD' }; // 🚨 חובה להחליף לסיסמה חזקה!
+const logUsers = { 'admin': 'adminadminadmin' }; // 🚨 חובה להחליף לסיסמה חזקה!
 app.get('/master_admin', basicAuth({
     users: logUsers,
     challenge: true,
