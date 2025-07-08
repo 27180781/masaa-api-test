@@ -23,8 +23,6 @@ app.use(express.json());
 // ===================================================================
 //                      PUBLIC & ADMIN ROUTES
 // ===================================================================
-app.get('/', (req, res) => res.redirect('/master_admin'));
-app.get('/master_admin', (req, res) => res.sendFile(path.join(__dirname, 'master_admin.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('/games_admin', (req, res) => res.sendFile(path.join(__dirname, 'games_admin.html')));
 app.get('/results_admin', (req, res) => res.sendFile(path.join(__dirname, 'results_admin.html')));
@@ -33,7 +31,20 @@ app.get('/my-result', (req, res) => res.sendFile(path.join(__dirname, 'my_result
 app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'client_dashboard.html')));
 // הגדר את שם המשתמש והסיסמה הרצויים
 const logUsers = { 'admin': 'CHANGE-THIS-PASSWORD' }; // 🚨 חובה להחליף לסיסמה חזקה!
-
+app.get('/master_admin', basicAuth({
+    users: logUsers,
+    challenge: true,
+    unauthorizedResponse: 'Unauthorized access'
+}), (req, res) => {
+    res.sendFile(path.join(__dirname, 'master_admin.html'));
+});
+app.get('/', basicAuth({
+    users: logUsers,
+    challenge: true,
+    unauthorizedResponse: 'Unauthorized access'
+}), (req, res) => {
+    res.redirect('/master_admin');
+});
 app.get('/logs', basicAuth({
     users: logUsers,
     challenge: true, // יקפיץ חלון לדרוש שם משתמש וסיסמה
