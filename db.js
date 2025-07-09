@@ -20,88 +20,103 @@ db.exec(`
     client_email TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
-  CREATE TABLE IF NOT EXISTS results (
-    game_id TEXT PRIMARY KEY,
-    result_data TEXT NOT NULL
+  CREATE TABLE IF NOT EXISTS questions (
+      question_id TEXT PRIMARY KEY,
+      question_text TEXT NOT NULL,
+      answers_mapping TEXT NOT NULL 
   );
   CREATE TABLE IF NOT EXISTS settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     settings_data TEXT NOT NULL
   );
-  CREATE TABLE IF NOT EXISTS questions (
-      question_id TEXT PRIMARY KEY,
-      question_text TEXT NOT NULL,
-      answers_mapping TEXT NOT NULL
-  );
-  CREATE TABLE IF NOT EXISTS insights (
+   CREATE TABLE IF NOT EXISTS insights (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       insights_data TEXT NOT NULL
   );
+
+  /* --- [שינוי]: 3 טבלאות תוצאות חדשות במקום אחת --- */
+  CREATE TABLE IF NOT EXISTS game_summaries (
+    game_id TEXT PRIMARY KEY,
+    client_email TEXT,
+    processed_at TEXT NOT NULL,
+    game_average_profile TEXT NOT NULL, /* JSON */
+    FOREIGN KEY (game_id) REFERENCES games(game_id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS individual_results (
+    id TEXT NOT NULL, /* מזהה המשתתף (טלפון) */
+    game_id TEXT NOT NULL,
+    access_code TEXT NOT NULL UNIQUE,
+    user_name TEXT,
+    group_name TEXT,
+    profile_data TEXT NOT NULL, /* JSON */
+    PRIMARY KEY (id, game_id),
+    FOREIGN KEY (game_id) REFERENCES games(game_id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS group_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id TEXT NOT NULL,
+    group_name TEXT NOT NULL,
+    participant_count INTEGER,
+    profile_data TEXT NOT NULL, /* JSON */
+    FOREIGN KEY (game_id) REFERENCES games(game_id) ON DELETE CASCADE,
+    UNIQUE(game_id, group_name)
+  );
 `);
+
 console.log('✅ Database tables initialized.');
 
-// --- הגירת נתונים אוטומטית (תרוץ פעם אחת אם צריך) ---
-function migrateData() {
-    console.log('Checking for data migration...');
-    const migrate = (tableName, jsonFileName, migrationLogic) => {
-        try {
-            const count = db.prepare(`SELECT COUNT(*) as count FROM ${tableName}`).get().count;
-            const jsonPath = path.join(dataDir, jsonFileName);
-            if (count === 0 && fs.existsSync(jsonPath)) {
-                console.log(`Migrating ${jsonFileName}...`);
-                const data = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
-                migrationLogic(data);
-            }
-        } catch(e) { console.error(`Could not migrate ${jsonFileName}:`, e.message); }
-    };
-
-    migrate('games', 'games.json', (data) => {
-        const stmt = db.prepare('INSERT INTO games (game_id, client_email, created_at) VALUES (?, ?, ?)');
-        db.transaction(() => {
-            for (const game of data) stmt.run(game.game_id, game.client_email, game.createdAt || new Date().toISOString());
-        })();
-        console.log(`Migrated ${data.length} games.`);
-    });
-
-    migrate('questions', 'questions.json', (data) => {
-        const stmt = db.prepare('INSERT INTO questions (question_id, question_text, answers_mapping) VALUES (?, ?, ?)');
-        db.transaction(() => {
-            for (const q of data) stmt.run(q.question_id, q.question_text, JSON.stringify(q.answers_mapping));
-        })();
-        console.log(`Migrated ${data.length} questions.`);
-    });
-
-migrate('settings', 'settings.json', (data) => {
-    // מייבאים את הנתונים כמו שהם מהקובץ הישן.
-    // הקידוד והפענוח רלוונטיים רק לשמירות חדשות מהדפדפן.
-    db.prepare('INSERT OR REPLACE INTO settings (id, settings_data) VALUES (1, ?)').run(JSON.stringify(data));
-    console.log('Migrated settings.');
-});
-    
-    migrate('insights', 'insights.json', (data) => {
-        db.prepare('INSERT OR REPLACE INTO insights (id, insights_data) VALUES (1, ?)').run(JSON.stringify(data));
-        console.log('Migrated insights.');
-    });
-
+// --- הגירת נתונים מורכבת (תרוץ פעם אחת אם צריך) ---
+function migrateOldResults() {
     try {
-        const count = db.prepare('SELECT COUNT(*) as count FROM results').get().count;
-        const resultsDir = path.join(dataDir, 'results');
-        if (count === 0 && fs.existsSync(resultsDir)) {
-             console.log('Migrating results...');
-             const resultFiles = fs.readdirSync(resultsDir).filter(f => f.endsWith('.json'));
-             const stmt = db.prepare('INSERT INTO results (game_id, result_data) VALUES (?, ?)');
-             db.transaction(() => {
-                 for (const file of resultFiles) {
-                     const gameId = file.replace('results_', '').replace('.json', '');
-                     const data = fs.readFileSync(path.join(resultsDir, file), 'utf-8');
-                     stmt.run(gameId, data);
-                 }
-             })();
-             console.log(`Migrated ${resultFiles.length} result files.`);
-        }
-    } catch(e) { console.error('Could not migrate results:', e.message); }
+        const count = db.prepare('SELECT COUNT(*) as count FROM game_summaries').get().count;
+        if (count > 0) return; // ההגירה כבר בוצעה
+
+        const oldResultsTableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='results'").get();
+        if (!oldResultsTableExists) return;
+
+        console.log('Migrating old `results` table to new normalized tables...');
+        const oldResults = db.prepare('SELECT game_id, result_data FROM results').all();
+
+        const insertSummary = db.prepare('INSERT INTO game_summaries (game_id, client_email, processed_at, game_average_profile) VALUES (?, ?, ?, ?)');
+        const insertIndividual = db.prepare('INSERT INTO individual_results (id, game_id, access_code, user_name, group_name, profile_data) VALUES (?, ?, ?, ?, ?, ?)');
+        const insertGroup = db.prepare('INSERT INTO group_results (game_id, group_name, participant_count, profile_data) VALUES (?, ?, ?, ?)');
+
+        db.transaction(() => {
+            for(const oldRes of oldResults) {
+                const data = JSON.parse(oldRes.result_data);
+
+                // 1. הגירת סיכום כללי
+                if (data.game_average_profile) {
+                    insertSummary.run(data.game_id, data.client_email, data.processed_at, JSON.stringify(data.game_average_profile));
+                }
+
+                // 2. הגירת תוצאות אישיות
+                if (data.individual_results) {
+                    for (const p of data.individual_results) {
+                       insertIndividual.run(p.id, data.game_id, p.access_code, p.name, p.group_name, JSON.stringify(p.profile));
+                    }
+                }
+
+                // 3. הגירת תוצאות קבוצתיות
+                if (data.group_results) {
+                    for (const groupName in data.group_results) {
+                        const groupData = data.group_results[groupName];
+                        insertGroup.run(data.game_id, groupName, groupData.participant_count, JSON.stringify(groupData.profile));
+                    }
+                }
+            }
+        })();
+
+        // מחיקת הטבלה הישנה לאחר הצלחה
+        db.exec('DROP TABLE results');
+        console.log(`✅ Migrated ${oldResults.length} old results and dropped old table.`);
+
+    } catch(e) { console.error('Could not migrate old results table:', e.message); }
 }
 
-migrateData();
+// קריאה להגירה הישנה. אם לא קיימת טבלת results, היא פשוט לא תעשה כלום
+migrateOldResults();
 
 module.exports = db;
