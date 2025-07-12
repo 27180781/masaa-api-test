@@ -4,19 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>התוצאות שלי</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; color: #333; text-align: center; }
         h1, h2 { color: #1d5b85; }
         .search-container { background-color: #f7f8fb; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
         input[type="text"] { width: 250px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
         button { background-color: #27ae60; color: white; padding: 10px 20px; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; margin-right: 5px; }
+        button:hover { opacity: 0.9; }
         #resultsContainer { text-align: right; border: 1px solid #eee; padding: 20px; border-radius: 8px; margin-top: 20px; }
         .insight-text { font-size: 1.1em; line-height: 1.6; }
         .insight-text p { margin: 10px 0; }
         .insight-text strong { color: #1d5b85; }
         .insight-text ul { padding-right: 20px; }
-        .profile-bars-container { margin: 20px 0; }
-        .profile-bar { display: inline-block; height: 10px; background-color: #3295c7; border-radius: 5px; }
+        /* **חדש: עיצוב לאזור התרשים והתובנות** */
+        .profile-container { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 40px; margin: 20px 0; }
+        .chart-container { max-width: 300px; max-height: 300px; }
+        #aiInsightButton { background-color: #3498db; margin-top: 15px; }
+        #aiInsightResult { background-color: #f7f9fa; border: 1px dashed #3498db; border-radius: 8px; padding: 15px; margin-top: 15px; text-align: right; white-space: pre-wrap; line-height: 1.7; }
     </style>
 </head>
 <body>
@@ -35,22 +40,64 @@
         const searchInput = document.getElementById('searchInput');
         const searchButton = document.getElementById('searchButton');
         const resultsContainer = document.getElementById('resultsContainer');
+        let currentUserProfile = null; // **חדש: משתנה גלובלי לשמירת הפרופיל הנוכחי**
 
-        function createProfileBars(profile) {
-            let barsHtml = '<div style="font-size: 0.8em; width: 200px;">';
-            for (const [element, value] of Object.entries(profile)) {
-                const color = {fire: '#e74c3c', water: '#3498db', air: '#f1c40f', earth: '#2ecc71'}[element] || '#ccc';
-                barsHtml += `
-                    <div>
-                        <span style="display: inline-block; width: 50px;">${element}:</span>
-                        <div style="display: inline-block; width: 100px; background-color: #eee; border-radius: 5px;">
-                            <div class="profile-bar" style="width: ${value.toFixed(0)}%; background-color: ${color};"></div>
-                        </div>
-                        <span style="margin-right: 5px;">${value.toFixed(1)}%</span>
-                    </div>
-                `;
-            }
-            return barsHtml + '</div>';
+        // **חדש: מילון לתרגום שמות האלמנטים לעברית**
+        const hebrewMap = {
+            fire: 'אש 🔥',
+            water: 'מים 💧',
+            air: 'אוויר 💨',
+            earth: 'אדמה 🌱'
+        };
+        const elementColors = {
+            fire: 'rgba(231, 76, 60, 0.8)',
+            water: 'rgba(52, 152, 219, 0.8)',
+            air: 'rgba(241, 196, 15, 0.8)',
+            earth: 'rgba(46, 204, 113, 0.8)'
+        };
+
+        // **חדש: פונקציה ליצירת תרשים עוגה עם Chart.js**
+        function createProfileChart(profile) {
+            const labels = Object.keys(profile).map(key => hebrewMap[key]);
+            const data = Object.values(profile);
+            const colors = Object.keys(profile).map(key => elementColors[key]);
+
+            const chartHtml = '<div class="chart-container"><canvas id="profileChart"></canvas></div>';
+            
+            // עיכוב קטן כדי לוודא שה-canvas קיים ב-DOM לפני שמציירים עליו
+            setTimeout(() => {
+                const ctx = document.getElementById('profileChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut', // סוג תרשים: דונאט (עוגה עם חור)
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'פרופיל אישי',
+                            data: data,
+                            backgroundColor: colors,
+                            borderColor: '#ffffff',
+                            borderWidth: 2,
+                            hoverOffset: 15 // אפקט ריחוף
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                labels: { font: { size: 14 } }
+                            }
+                        },
+                        animation: {
+                            animateScale: true, // אנימציית פתיחה יפה
+                            animateRotate: true
+                        }
+                    }
+                });
+            }, 0);
+            
+            return chartHtml;
         }
 
         function getDominantElement(profile) {
@@ -65,7 +112,7 @@
             let html = `<div class="insight-text">`;
             
             if (dominantElement && insights.dominant_insights && insights.dominant_insights[dominantElement]) {
-                html += `<p><strong>התכונה הדומיננטית:</strong> ${insights.dominant_insights[dominantElement]}</p><hr style="margin: 5px 0;">`;
+                html += `<p><strong>התכונה הדומיננטית (${hebrewMap[dominantElement]}):</strong> ${insights.dominant_insights[dominantElement]}</p><hr style="margin: 5px 0;">`;
             }
 
             html += `<p><strong>פירוט נוסף:</strong></p><ul>`;
@@ -74,12 +121,55 @@
                     const sortedRules = insights.general_insights[element].sort((a,b) => b.min_percent - a.min_percent);
                     const applicableRule = sortedRules.find(rule => value >= rule.min_percent);
                     if (applicableRule) {
-                        html += `<li><strong>${element}:</strong> ${applicableRule.text}</li>`;
+                        // **מעודכן: שימוש במילון לעברית**
+                        html += `<li><strong>${hebrewMap[element]}:</strong> ${applicableRule.text}</li>`;
                     }
                 }
             }
-            html += '</ul></div>';
+            html += '</ul>';
+            // **חדש: הוספת כפתור לתובנת AI ומקום להצגתה**
+            html += `<button id="aiInsightButton">צור תובנת AI 🧠</button>`;
+            html += `<div id="aiInsightResult" style="display: none;"></div>`
+            html += `</div>`;
             return html;
+        }
+
+        // **חדש: פונקציה לקבלת תובנת AI מהשרת**
+        async function getAiInsight() {
+            const aiButton = document.getElementById('aiInsightButton');
+            const aiResultContainer = document.getElementById('aiInsightResult');
+            
+            if (!currentUserProfile) {
+                alert("יש לטעון פרופיל תחילה.");
+                return;
+            }
+
+            aiButton.disabled = true;
+            aiButton.innerText = "מעבד בקשה...";
+            aiResultContainer.style.display = 'block';
+            aiResultContainer.innerText = 'חושב... 🤖\nג׳ימיני מנתח את הפרופיל שלך, זה עשוי לקחת מספר שניות.';
+
+            try {
+                // זוהי הקריאה לשרת שלך (Backend). השרת שלך יקרא ל-Gemini.
+                const response = await fetch('https://gemini-server.caprover.clicker.co.il/api/get-ai-insight', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ profile: currentUserProfile })
+                });
+
+                if (!response.ok) {
+                    throw new Error('השרת החזיר שגיאה בניסיון לקבל תובנת AI.');
+                }
+
+                const aiData = await response.json();
+                aiResultContainer.innerText = aiData.insight; // הצגת התשובה מהשרת
+
+            } catch (error) {
+                aiResultContainer.innerText = `אופס, התרחשה שגיאה: ${error.message}`;
+            } finally {
+                aiButton.disabled = false;
+                aiButton.innerText = "צור תובנת AI 🧠";
+            }
         }
 
         async function findMyResults() {
@@ -102,26 +192,29 @@
                     fetch('/api/insights')
                 ]);
 
-                if (!resultRes.ok) {
-                    throw new Error('התוצאות לא נמצאו. אנא ודא שהקוד או מספר הטלפון נכונים.');
-                }
-                 if (!insightsRes.ok) {
-                    throw new Error('שגיאה בטעינת מודל התובנות.');
-                }
-
+                if (!resultRes.ok) throw new Error('התוצאות לא נמצאו. אנא ודא שהקוד או מספר הטלפון נכונים.');
+                if (!insightsRes.ok) throw new Error('שגיאה בטעינת מודל התובנות.');
 
                 const result = await resultRes.json();
                 const insights = await insightsRes.json();
                 
+                currentUserProfile = result.profile; // **חדש: שמירת הפרופיל לשימוש עתידי (עבור AI)**
+
                 let html = `
                     <h2>שלום, ${result.name}! הנה הפרופיל שלך:</h2>
-                    <div class="profile-bars-container">${createProfileBars(result.profile)}</div>
-                    <div>${generateInsightHTML(result.profile, insights)}</div>
+                    <div class="profile-container">
+                        ${createProfileChart(result.profile)}
+                        ${generateInsightHTML(result.profile, insights)}
+                    </div>
                 `;
                 resultsContainer.innerHTML = html;
 
+                // **חדש: הוספת event listener לכפתור ה-AI לאחר שהוא נוצר**
+                document.getElementById('aiInsightButton').addEventListener('click', getAiInsight);
+
             } catch (error) {
                 resultsContainer.innerHTML = `<p style="color: red;">${error.message}</p>`;
+                currentUserProfile = null; // איפוס במקרה של שגיאה
             }
         }
 
@@ -129,6 +222,16 @@
         searchInput.addEventListener('keyup', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
+                findMyResults();
+            }
+        });
+        
+        // **חדש: קוד שרץ בטעינת הדף לבדוק פרמטרים בקישור**
+        window.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const query = params.get('code') || params.get('phone');
+            if (query) {
+                searchInput.value = query;
                 findMyResults();
             }
         });
