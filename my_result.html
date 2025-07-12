@@ -144,33 +144,38 @@
                 return;
             }
 
-            aiButton.disabled = true;
-            aiButton.innerText = "מעבד בקשה...";
-            aiResultContainer.style.display = 'block';
-            aiResultContainer.innerText = 'חושב... 🤖\nג׳ימיני מנתח את הפרופיל שלך, זה עשוי לקחת מספר שניות.';
+// שלב 1: שינוי הכפתור למצב טעינה
+    aiButton.disabled = true;
+    aiButton.innerText = "מעבד בקשה...";
+    aiResultContainer.style.display = 'block';
+    aiResultContainer.innerText = 'חושב... 🤖\nג׳ימיני מנתח את הפרופיל שלך, זה עשוי לקחת מספר שניות.';
 
-            try {
-                // זוהי הקריאה לשרת שלך (Backend). השרת שלך יקרא ל-Gemini.
-                const response = await fetch('https://gemini-server.caprover.clicker.co.il/api/get-ai-insight', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ profile: currentUserProfile })
-                });
+    try {
+        const response = await fetch('https://gemini-server.caprover.clicker.co.il/api/get-ai-insight', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profile: currentUserProfile })
+        });
 
-                if (!response.ok) {
-                    throw new Error('השרת החזיר שגיאה בניסיון לקבל תובנת AI.');
-                }
-
-                const aiData = await response.json();
-                aiResultContainer.innerText = aiData.insight; // הצגת התשובה מהשרת
-
-            } catch (error) {
-                aiResultContainer.innerText = `אופס, התרחשה שגיאה: ${error.message}`;
-            } finally {
-                aiButton.disabled = false;
-                aiButton.innerText = "צור תובנת AI 🧠";
-            }
+        if (!response.ok) {
+            throw new Error('השרת החזיר שגיאה בניסיון לקבל תובנת AI.');
         }
+
+        const aiData = await response.json();
+        aiResultContainer.innerText = aiData.insight;
+
+        // [השינוי] שלב 2: אם הבקשה הצליחה, העלם את הכפתור
+        aiButton.style.display = 'none';
+
+    } catch (error) {
+        aiResultContainer.innerText = `אופס, התרחשה שגיאה: ${error.message}`;
+        
+        // [השינוי] שלב 3: אם הייתה שגיאה, החזר את הכפתור למצב המקורי
+        aiButton.disabled = false;
+        aiButton.innerText = "צור תובנת AI 🧠";
+    }
+    // שים לב שהסרנו את בלוק ה-finally, כי עכשיו אנחנו מטפלים בכל מקרה לגופו.
+}
 
         async function findMyResults() {
             const query = searchInput.value.trim();
