@@ -43,7 +43,6 @@ app.get('/logs', adminOnly, (req, res) => {
     res.sendFile(path.join(__dirname, 'logs.html'));
 });
 
- --- נתיבים ציבוריים (עכשיו מאובטחים) ---
 app.get('/admin', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('/games_admin', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'games_admin.html')));
 app.get('/results_admin', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'results_admin.html')));
