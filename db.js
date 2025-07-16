@@ -15,11 +15,14 @@ console.log(`✅ Connected to SQLite database at ${dbPath}`);
 
 // יצירת טבלאות
 db.exec(`
-  CREATE TABLE IF NOT EXISTS games (
-    game_id TEXT PRIMARY KEY,
-    client_email TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-  );
+CREATE TABLE IF NOT EXISTS games (
+  game_id TEXT PRIMARY KEY,
+  client_email TEXT, -- יהיה ריק בהתחלה
+  status TEXT DEFAULT 'available', -- available, assigned, completed
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP, -- [שדרוג] שומר על תאריך ההוספה המקורי
+  assigned_at TEXT,
+  completed_at TEXT
+);
   CREATE TABLE IF NOT EXISTS questions (
       question_id TEXT PRIMARY KEY,
       question_text TEXT NOT NULL,

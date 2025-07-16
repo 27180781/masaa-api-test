@@ -43,11 +43,11 @@ app.get('/logs', adminOnly, (req, res) => {
     res.sendFile(path.join(__dirname, 'logs.html'));
 });
 
-// --- נתיבים ציבוריים ---
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
-app.get('/games_admin', (req, res) => res.sendFile(path.join(__dirname, 'games_admin.html')));
-app.get('/results_admin', (req, res) => res.sendFile(path.join(__dirname, 'results_admin.html')));
-app.get('/insights_admin', (req, res) => res.sendFile(path.join(__dirname, 'insights_admin.html')));
+ --- נתיבים ציבוריים (עכשיו מאובטחים) ---
+app.get('/admin', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
+app.get('/games_admin', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'games_admin.html')));
+app.get('/results_admin', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'results_admin.html')));
+app.get('/insights_admin', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'insights_admin.html')));
 app.get('/my-result', (req, res) => res.sendFile(path.join(__dirname, 'my_result.html')));
 app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'client_dashboard.html')));
 
@@ -107,25 +107,59 @@ app.delete('/api/questions/:questionId', (req, res) => {
     } catch (e) { console.error('❌ Error deleting question:', e); res.status(500).json({ message: 'Internal Server Error' }); }
 });
 
-// --- ניהול משחקים ---
+// --- ניהול משחקים (משודרג למודל Pool) ---
 app.get('/api/games', (req, res) => {
     try {
-        const games = db.prepare('SELECT game_id, client_email, created_at FROM games ORDER BY created_at DESC').all();
+        const games = db.prepare('SELECT * FROM games ORDER BY created_at DESC').all();
         res.json(games);
-    } catch (e) { console.error('❌ Error reading games:', e); res.status(500).json({ message: 'Internal Server Error' }); }
+    } catch (e) {
+        console.error('❌ Error reading games:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 
-app.post('/api/games', (req, res) => {
+app.post('/api/games/bulk', (req, res) => {
     try {
-        let { game_id, client_email } = req.body;
-        if (!game_id || !client_email) return res.status(400).json({ message: 'game_id and client_email are required' });
-        game_id = game_id.trim();
-        db.prepare('INSERT INTO games (game_id, client_email) VALUES (?, ?)')
-          .run(game_id, client_email);
-        res.status(201).json({ message: 'Game saved' });
+        const { game_ids } = req.body;
+        if (!game_ids || !Array.isArray(game_ids)) {
+            return res.status(400).json({ message: 'Expecting an array of game_ids' });
+        }
+
+        const insert = db.prepare("INSERT OR IGNORE INTO games (game_id, created_at) VALUES (?, datetime('now'))");
+        const bulkInsert = db.transaction((ids) => {
+            for (const id of ids) {
+                const trimmedId = id.trim();
+                if(trimmedId) insert.run(trimmedId);
+            }
+        });
+
+        bulkInsert(game_ids);
+        res.status(201).json({ message: `${game_ids.length} games added or ignored.` });
     } catch (e) {
-        if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') return res.status(409).json({ message: `Game with ID '${game_id}' already exists.` });
-        console.error('❌ Error saving game:', e);
+        console.error('❌ Error bulk adding games:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+});
+
+app.post('/api/games/assign', (req, res) => {
+    try {
+        const { client_email } = req.body;
+        if (!client_email) return res.status(400).json({ message: 'client_email is required' });
+
+        const availableGame = db.prepare("SELECT game_id FROM games WHERE status = 'available' ORDER BY created_at LIMIT 1").get();
+
+        if (!availableGame) {
+            return res.status(404).json({ message: 'No available game IDs in the pool.' });
+        }
+
+        const game_id = availableGame.game_id;
+        db.prepare("UPDATE games SET client_email = ?, status = 'assigned', assigned_at = CURRENT_TIMESTAMP WHERE game_id = ?")
+          .run(client_email, game_id);
+
+        console.log(`✅ Game ID ${game_id} assigned to ${client_email}`);
+        res.json({ status: 'success', assigned_game_id: game_id });
+    } catch (e) {
+        console.error('❌ Error assigning game:', e);
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
@@ -136,7 +170,10 @@ app.delete('/api/games/:gameId', (req, res) => {
         const info = db.prepare('DELETE FROM games WHERE game_id = ?').run(gameId);
         if (info.changes > 0) res.json({ message: `Game ${gameId} deleted` });
         else res.status(404).json({ message: 'Game not found' });
-    } catch (e) { console.error('❌ Error deleting game:', e); res.status(500).json({ message: 'Internal Server Error' }); }
+    } catch (e) {
+        console.error('❌ Error deleting game:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 
 // --- ניהול תובנות ---
@@ -227,7 +264,7 @@ app.get('/api/my-result/by-phone/:phone', (req, res) => {
     } catch (e) { console.error('❌ Error searching by phone:', e); res.status(500).json({ message: 'Internal Server Error' }); }
 });
 
-// --- עיבוד תוצאות ---
+// --- [שדרוג] עיבוד תוצאות עם הפורמט החדש ---
 app.post('/api/submit-results', async (req, res) => {
     try {
         const logEntry = { timestamp: new Date().toISOString(), type: 'SUBMIT_RESULTS', data: req.body };
@@ -235,38 +272,61 @@ app.post('/api/submit-results', async (req, res) => {
         if (logHistory.length > MAX_LOG_HISTORY) { logHistory.shift(); }
         io.emit('new_log', logEntry);
 
-        let { gameId: game_id, users } = req.body;
-        if (!game_id || !users) return res.status(400).json({ message: 'Invalid data structure' });
+        // שימוש בשם המשתנה החדש מהפורמט 'participants'
+        let { game_id, participants } = req.body;
+        if (!game_id || !participants) return res.status(400).json({ message: 'Invalid data structure' });
+        
         game_id = game_id.trim();
         const gameRow = db.prepare('SELECT client_email FROM games WHERE game_id = ?').get(game_id);
         const client_email = gameRow ? gameRow.client_email : null;
+        
         const questionRows = db.prepare('SELECT question_id, answers_mapping FROM questions').all();
         const questionMap = questionRows.reduce((map, q) => { map[q.question_id] = { answers_mapping: JSON.parse(q.answers_mapping) }; return map; }, {});
+
         const individual_results = [];
         const group_results_obj = {};
         const game_grand_totals = { fire: 0, water: 0, air: 0, earth: 0 };
-        for (const [userId, participantData] of Object.entries(users)) {
+
+        for (const [userId, participantData] of Object.entries(participants)) {
+            // [תיקון] חילוץ הנתונים מהמבנה החדש והמורכב
+            const name = participantData.details ? participantData.details.name : userId;
+            const group_name = participantData.details && participantData.details.category_1 ? `קבוצה ${participantData.details.category_1.groupId}` : null;
+            
+            const answers = {};
+            // [תיקון] לולאה שחולטת רק את התשובות מהאובייקט
+            for (const key in participantData) {
+                if (key.startsWith('queId_') && !key.includes('_success')) {
+                    const questionNum = key.replace('queId_', '');
+                    answers[`q${questionNum}`] = String(participantData[key]);
+                }
+            }
+
             const elementCounts = { fire: 0, water: 0, air: 0, earth: 0 };
             let validAnswersCount = 0;
-            if (participantData.answers) {
-                for (const [questionId, answerChoice] of Object.entries(participantData.answers)) {
+            if (answers) {
+                for (const [questionId, answerChoice] of Object.entries(answers)) {
                     const question = questionMap[questionId];
                     if (question && question.answers_mapping) {
-                        const element = question.answers_mapping[String(answerChoice)];
+                        const element = question.answers_mapping[answerChoice];
                         if (element) { elementCounts[element]++; validAnswersCount++; }
                     }
                 }
             }
+            
             const profile = Object.keys(elementCounts).reduce((prof, key) => { prof[key] = validAnswersCount > 0 ? (elementCounts[key] / validAnswersCount) * 100 : 0; return prof; }, {});
             Object.keys(profile).forEach(elem => { game_grand_totals[elem] += profile[elem]; });
             const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
-            individual_results.push({ id: userId, name: participantData.name, group_name: participantData.group_name, profile, access_code });
-            if (participantData.group_name) {
-                if (!group_results_obj[participantData.group_name]) { group_results_obj[participantData.group_name] = { counts: { fire: 0, water: 0, air: 0, earth: 0 }, participant_count: 0 }; }
-                Object.keys(profile).forEach(elem => group_results_obj[participantData.group_name].counts[elem] += profile[elem]);
-                group_results_obj[participantData.group_name].participant_count++;
+            
+            individual_results.push({ id: userId, name, group_name, profile, access_code });
+            
+            if (group_name) {
+                if (!group_results_obj[group_name]) { group_results_obj[group_name] = { counts: { fire: 0, water: 0, air: 0, earth: 0 }, participant_count: 0 }; }
+                Object.keys(profile).forEach(elem => group_results_obj[group_name].counts[elem] += profile[elem]);
+                group_results_obj[group_name].participant_count++;
             }
         }
+        
+        // --- המשך הלוגיקה הקיימת ---
         const group_results = {};
         for (const [groupName, data] of Object.entries(group_results_obj)) {
             group_results[groupName] = { profile: Object.keys(data.counts).reduce((prof, key) => { prof[key] = data.counts[key] / data.participant_count; return prof; }, {}), participant_count: data.participant_count };
@@ -285,6 +345,11 @@ app.post('/api/submit-results', async (req, res) => {
         });
         saveAllResults();
         console.log(`✅ Game results for ${game_id} saved to DB (Normalized).`);
+// [שינוי] עדכון סטטוס המשחק ל-'completed'
+db.prepare("UPDATE games SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE game_id = ?")
+  .run(game_id);
+
+console.log(`✅ Game ${game_id} marked as completed.`);
 
         const settingsRow = db.prepare('SELECT settings_data FROM settings WHERE id = 1').get();
         const settings = settingsRow ? JSON.parse(settingsRow.settings_data) : {};
@@ -307,13 +372,13 @@ app.post('/api/submit-results', async (req, res) => {
                 } catch (e) { console.error(`❌ Error sending webhook for participant ${participantResult.name}: ${e.message}`); }
             }
         }
+        
         res.json({ status: 'success', message: 'Game results processed successfully' });
     } catch (error) {
         console.error('❌ Error processing results:', error);
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
-
 // --- API ליצירת תמונות ---
 app.get('/images/game-summary/:gameId.png', (req, res) => {
     try {

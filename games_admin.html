@@ -2,102 +2,111 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ניהול משחקים</title>
+    <title>ניהול מאגר משחקים</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; color: #333; }
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 1200px; margin: auto; }
         h1, h2 { color: #1d5b85; }
-        .item-list { list-style: none; padding: 0; }
-        .item { background-color: #f7f8fb; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 10px; padding: 15px; }
-        .item button { background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; float: left; }
-        .form-container { background-color: #eaf4f9; padding: 20px; border-radius: 5px; margin-top: 30px; }
-        input[type="text"], input[type="email"] { width: calc(100% - 20px); padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 3px; }
-        button[type="submit"] { background-color: #2ecc71; color: white; padding: 10px 20px; border: none; border-radius: 3px; font-size: 16px; cursor: pointer; }
         nav a { margin-left: 20px; font-size: 18px; }
+        .container { display: grid; grid-template-columns: 1fr 2fr; gap: 30px; }
+        .form-container, .table-container { background-color: #f7f8fb; border: 1px solid #ddd; border-radius: 8px; padding: 20px; }
+        textarea { width: 100%; box-sizing: border-box; }
+        button { background-color: #27ae60; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+        th { background-color: #f2f2f2; }
+        td button { background-color: #e74c3c; font-size: 12px; padding: 5px 10px;}
     </style>
 </head>
 <body>
     <nav>
-        <a href="/admin">ניהול שאלות</a>
+        <a href="/master_admin">דשבורד ראשי</a>
         <a href="/games_admin">ניהול משחקים</a>
     </nav>
-    <h1>ניהול משחקים</h1>
+    <h1>ניהול מאגר מזהי משחק</h1>
 
-    <h2>רשימת המשחקים הקיימים</h2>
-    <ul id="gamesList" class="item-list">
-        </ul>
+    <div class="container">
+        <div class="form-container">
+            <h2>הוספת מזהים חדשים</h2>
+            <form id="addGamesForm">
+                <label for="game_ids">הדבק רשימת מזהים (אחד בכל שורה):</label>
+                <textarea id="game_ids" rows="10"></textarea>
+                <br><br>
+                <button type="submit">הוסף למאגר</button>
+            </form>
+        </div>
 
-    <div class="form-container">
-        <h2>הוספת שיוך חדש (משחק למייל)</h2>
-        <form id="addGameForm">
-            <label for="game_id">מזהה משחק ייחודי:</label>
-            <input type="text" id="game_id" name="game_id" required>
-            
-            <label for="client_email">מייל הלקוח:</label>
-            <input type="email" id="client_email" name="client_email" required>
-
-            <br><br>
-            <button type="submit">הוסף משחק</button>
-        </form>
+        <div class="table-container">
+            <h2>סטטוס מזהי משחק</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>מזהה משחק</th><th>סטטוס</th><th>מייל משויך</th>
+                        <th>תאריך שיוך</th><th>תאריך סיום</th><th>פעולות</th>
+                    </tr>
+                </thead>
+                <tbody id="gamesTableBody"></tbody>
+            </table>
+        </div>
     </div>
 
     <script>
-        const gamesList = document.getElementById('gamesList');
-        const addGameForm = document.getElementById('addGameForm');
+        const addGamesForm = document.getElementById('addGamesForm');
+        const gamesTableBody = document.getElementById('gamesTableBody');
 
         async function fetchGames() {
             try {
                 const response = await fetch('/api/games');
                 const games = await response.json();
-                
-                gamesList.innerHTML = '';
+
+                gamesTableBody.innerHTML = '';
                 games.forEach(game => {
-                    const li = document.createElement('li');
-                    li.className = 'item';
-                    li.innerHTML = `
-                        <button onclick="deleteGame('${game.game_id}')">מחק</button>
-                        <strong>מזהה:</strong> ${game.game_id}<br>
-                        <strong>מייל:</strong> ${game.client_email}
+                    const row = document.createElement('tr');
+                    let statusText = game.status;
+                    if (game.status === 'available') statusText = '✅ פנוי';
+                    if (game.status === 'assigned') statusText = '🟡 משויך';
+                    if (game.status === 'completed') statusText = '🔵 הסתיים';
+
+                    row.innerHTML = `
+                        <td><strong>${game.game_id}</strong></td>
+                        <td>${statusText}</td>
+                        <td>${game.client_email || '-'}</td>
+                        <td>${game.assigned_at ? new Date(game.assigned_at).toLocaleString('he-IL') : '-'}</td>
+                        <td>${game.completed_at ? new Date(game.completed_at).toLocaleString('he-IL') : '-'}</td>
+                        <td><button onclick="deleteGame('${game.game_id}')">מחק</button></td>
                     `;
-                    gamesList.appendChild(li);
+                    gamesTableBody.appendChild(row);
                 });
-            } catch (error) {
-                console.error('Error fetching games:', error);
-            }
+            } catch (error) { console.error('Error fetching games:', error); }
         }
 
-        async function deleteGame(gameId) {
-            if (!confirm(`האם אתה בטוח שברצונך למחוק את משחק ${gameId}?`)) return;
-            try {
-                await fetch(`/api/games/${gameId}`, { method: 'DELETE' });
-                fetchGames();
-            } catch (error) {
-                console.error('Error deleting game:', error);
-            }
-        }
-
-        addGameForm.addEventListener('submit', async (e) => {
+        addGamesForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const newGame = {
-                game_id: document.getElementById('game_id').value,
-                client_email: document.getElementById('client_email').value,
-            };
+            const idsText = document.getElementById('game_ids').value;
+            const game_ids = idsText.split(/\s+/).filter(id => id.trim() !== '');
+
+            if (game_ids.length === 0) return alert('נא להזין מזהים');
+
             try {
-                const res = await fetch('/api/games', {
+                const res = await fetch('/api/games/bulk', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(newGame)
+                    body: JSON.stringify({ game_ids })
                 });
                 if (res.ok) {
-                    addGameForm.reset();
+                    document.getElementById('game_ids').value = '';
                     fetchGames();
-                } else {
-                    alert('Error adding game');
-                }
-            } catch (error) {
-                console.error('Error adding game:', error);
-            }
+                } else { alert('Error adding games'); }
+            } catch (error) { console.error('Error adding games:', error); }
         });
+
+        async function deleteGame(gameId) {
+            if (!confirm(`האם למחוק את המשחק ${gameId}?`)) return;
+            try {
+                const res = await fetch(`/api/games/${gameId}`, { method: 'DELETE' });
+                if (res.ok) fetchGames();
+                else alert('Error deleting game');
+            } catch(e) { console.error('Error:', e); }
+        }
 
         fetchGames();
     </script>
