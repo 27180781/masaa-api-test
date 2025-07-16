@@ -8,10 +8,12 @@
         body { font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; color: #333; }
         h1, h2 { color: #1d5b85; }
         .question-list { list-style: none; padding: 0; }
-        .question-item { background-color: #f7f8fb; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 10px; padding: 15px; }
+        .question-item { background-color: #f7f8fb; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 10px; padding: 15px; cursor: move; transition: background-color 0.2s ease; }
+        .question-item:hover { background-color: #f0f2f5; }
+        .question-item.dragging { opacity: 0.5; background: #eaf4f9; }
         .question-item button { background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; float: left; }
         .form-container { background-color: #eaf4f9; padding: 20px; border-radius: 5px; margin-top: 30px; }
-        input[type="text"] { width: calc(100% - 20px); padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 3px; }
+        input[type="text"], select { width: calc(100% - 20px); padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 3px; }
         button[type="submit"] { background-color: #2ecc71; color: white; padding: 10px 20px; border: none; border-radius: 3px; font-size: 16px; cursor: pointer; }
     </style>
 </head>
@@ -19,7 +21,7 @@
 
     <h1>ניהול שאלות - מסע אל תוך עצמי</h1>
 
-    <h2>רשימת השאלות הקיימות</h2>
+    <h2>רשימת השאלות הקיימות (ניתן למיין בגרירה)</h2>
     <ul id="questionsList" class="question-list"></ul>
 
     <div class="form-container">
@@ -32,17 +34,38 @@
             <input type="text" id="question_text" name="question_text" required>
 
             <h4>שיוך תשובות:</h4>
+            
             <label for="ans1">תשובה 1 משויכת ל:</label>
-            <input type="text" id="ans1" name="ans1" value="fire" required>
+            <select id="ans1" name="ans1" required>
+                <option value="fire" selected>אש</option>
+                <option value="water">מים</option>
+                <option value="air">רוח</option>
+                <option value="earth">עפר</option>
+            </select>
             
             <label for="ans2">תשובה 2 משויכת ל:</label>
-            <input type="text" id="ans2" name="ans2" value="water" required>
+            <select id="ans2" name="ans2" required>
+                <option value="fire">אש</option>
+                <option value="water" selected>מים</option>
+                <option value="air">רוח</option>
+                <option value="earth">עפר</option>
+            </select>
 
             <label for="ans3">תשובה 3 משויכת ל:</label>
-            <input type="text" id="ans3" name="ans3" value="air" required>
+            <select id="ans3" name="ans3" required>
+                <option value="fire">אש</option>
+                <option value="water">מים</option>
+                <option value="air" selected>רוח</option>
+                <option value="earth">עפר</option>
+            </select>
 
             <label for="ans4">תשובה 4 משויכת ל:</label>
-            <input type="text" id="ans4" name="ans4" value="earth" required>
+            <select id="ans4" name="ans4" required>
+                <option value="fire">אש</option>
+                <option value="water">מים</option>
+                <option value="air">רוח</option>
+                <option value="earth" selected>עפר</option>
+            </select>
 
             <br><br>
             <button type="submit">הוסף שאלה</button>
@@ -62,6 +85,9 @@
                 questions.forEach(q => {
                     const li = document.createElement('li');
                     li.className = 'question-item';
+                    li.setAttribute('draggable', 'true');
+                    li.dataset.questionId = q.question_id;
+
                     li.innerHTML = `
                         <button onclick="deleteQuestion('${q.question_id}')">מחק</button>
                         <strong>${q.question_id}:</strong> ${q.question_text}
@@ -75,6 +101,8 @@
         }
 
         async function deleteQuestion(questionId) {
+            // Prevent the drag event from firing when clicking the button
+            event.stopPropagation();
             if (!confirm(`האם אתה בטוח שברצונך למחוק את שאלה ${questionId}?`)) return;
             try {
                 await fetch(`/api/questions/${questionId}`, { method: 'DELETE' });
@@ -103,6 +131,11 @@
                 });
                 if (res.ok) {
                     addQuestionForm.reset();
+                    // Reset selects to default values
+                    document.getElementById('ans1').value = 'fire';
+                    document.getElementById('ans2').value = 'water';
+                    document.getElementById('ans3').value = 'air';
+                    document.getElementById('ans4').value = 'earth';
                     fetchQuestions();
                 } else {
                     alert('Error adding question');
@@ -111,6 +144,51 @@
                 console.error('Error adding question:', error);
             }
         });
+        
+        // --- Drag and Drop Logic ---
+        let draggedItem = null;
+
+        questionsList.addEventListener('dragstart', (e) => {
+            if (e.target.classList.contains('question-item')) {
+                draggedItem = e.target;
+                setTimeout(() => {
+                    e.target.classList.add('dragging');
+                }, 0);
+            }
+        });
+
+        questionsList.addEventListener('dragend', (e) => {
+             if (draggedItem) {
+                draggedItem.classList.remove('dragging');
+                draggedItem = null;
+            }
+        });
+
+        questionsList.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const afterElement = getDragAfterElement(questionsList, e.clientY);
+            const currentlyDragged = document.querySelector('.dragging');
+            if (afterElement == null) {
+                questionsList.appendChild(currentlyDragged);
+            } else {
+                questionsList.insertBefore(currentlyDragged, afterElement);
+            }
+        });
+
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.question-item:not(.dragging)')];
+
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
 
         fetchQuestions();
     </script>
