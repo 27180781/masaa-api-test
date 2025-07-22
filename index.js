@@ -11,6 +11,15 @@ const db = require('./db.js');
 const http = require('http');
 const { Server } = require("socket.io");
 const basicAuth = require('express-basic-auth');
+const celery = require('celery-node');
+
+const celeryClient = celery.createClient(
+  process.env.REDIS_URL, // משתמש במשתנה הסביבה לכתובת הרדיס
+  process.env.REDIS_URL  // משמש גם עבור ה-backend של Celery
+);
+
+const QUEUE_NAME = process.env.QUEUE_NAME || 'celery'; // שם התור, ברירת מחדל 'celery'
+const TASK_NAME = 'process_game_result_task'; // שם המשימה כפי שמוגדר ב-worker.py
 
 const app = express();
 const PORT = 3000;
@@ -362,16 +371,27 @@ console.log(`✅ Game ${game_id} marked as completed.`);
                 console.log(`📢 Webhook סיכום נשלח בהצלחה.`);
             } catch (webhookError) { console.error(`❌ Error sending summary GET webhook: ${webhookError.message}`); }
         }
-        if (settings.participant_webhook_url) {
-            for (const participantResult of individual_results) {
-                try {
-                    const payload = { ...participantResult, game_id, client_email };
-                    await axios.post(settings.participant_webhook_url, payload);
-                    console.log(`📢 Webhook נשלח עבור משתתף: ${participantResult.name}`);
-                } catch (e) { console.error(`❌ Error sending webhook for participant ${participantResult.name}: ${e.message}`); }
-            }
-        }
-        
+// <<< יש להוסיף את כל הקטע הזה במקום הקוד שנמחק >>>
+console.log(`📢 מתחיל שליחת ${individual_results.length} משימות ל-Celery...`);
+for (const participantResult of individual_results) {
+    try {
+        // 1. הכנת מבנה הנתונים כפי שה-Worker מצפה לקבל
+        const job_data = {
+            phone: participantResult.id, // 'id' הוא מספר הטלפון
+            name: participantResult.name,
+            profile: participantResult.profile
+        };
+
+        // 2. שליחת המשימה לתור שמוגדר במשתני הסביבה
+        const task = celeryClient.createTask(TASK_NAME, { queue: QUEUE_NAME });
+        task.applyAsync([job_data]);
+
+        console.log(`✅ משימה נשלחה ל-Celery עבור: ${participantResult.name} (${participantResult.id})`);
+
+    } catch (e) {
+        console.error(`❌ Error sending Celery task for participant ${participantResult.name}: ${e.message}`);
+    }
+}        
         res.json({ status: 'success', message: 'Game results processed successfully' });
     } catch (error) {
         console.error('❌ Error processing results:', error);
