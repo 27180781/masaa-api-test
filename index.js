@@ -4,8 +4,19 @@
 require('dotenv').config(); // [תיקון אבטחה] טוען משתני סביבה מהקובץ .env
 const express = require('express');
 const { registerFont } = require('canvas');
-registerFont('./assets/FbKanuba-Regular.ttf', { family: 'FbKanuba' });
-registerFont('./assets/FbKanuba-Bold.ttf', { family: 'FbKanuba', weight: 'bold' });
+const fs = require('fs'); // ⭐️ הוספה: ייבוא מודול מערכת הקבצים
+const regularFontPath = './assets/FbKanuba-Regular.ttf';
+const boldFontPath = './assets/FbKanuba-Bold.ttf';
+
+if (fs.existsSync(regularFontPath) && fs.existsSync(boldFontPath)) {
+  registerFont(regularFontPath, { family: 'FbKanuba', weight: 'normal' });
+  registerFont(boldFontPath, { family: 'FbKanuba', weight: 'bold' });
+  console.log('✅ Fonts "FbKanuba" registered successfully.');
+} else {
+  console.error('❌ Error: Font files not found. Please check the /assets directory.');
+  if (!fs.existsSync(regularFontPath)) console.error(`- Missing: ${regularFontPath}`);
+  if (!fs.existsSync(boldFontPath)) console.error(`- Missing: ${boldFontPath}`);
+}
 const path = require('path');
 const cors = require('cors');
 const axios = require('axios');
@@ -130,46 +141,61 @@ app.get('/api/games', (req, res) => {
     }
 });
 
+// [שינוי] עדכון נקודת הקצה לקבלת מערך אובייקטים
 app.post('/api/games/bulk', (req, res) => {
     try {
-        const { game_ids } = req.body;
-        if (!game_ids || !Array.isArray(game_ids)) {
-            return res.status(400).json({ message: 'Expecting an array of game_ids' });
+        const { games_data } = req.body; // [החלפה] קבלת מערך אובייקטים במקום מערך מחרוזות
+        if (!games_data || !Array.isArray(games_data)) {
+            return res.status(400).json({ message: 'Expecting an array of game objects in games_data' });
         }
 
-        const insert = db.prepare("INSERT OR IGNORE INTO games (game_id, created_at) VALUES (?, datetime('now'))");
-        const bulkInsert = db.transaction((ids) => {
-            for (const id of ids) {
-                const trimmedId = id.trim();
-                if(trimmedId) insert.run(trimmedId);
+        // [החלפה] עדכון פקודת ה-INSERT כדי שתכלול את השדות החדשים
+        const insert = db.prepare("INSERT OR IGNORE INTO games (game_id, name, participant_count, created_at) VALUES (?, ?, ?, datetime('now'))");
+
+        const bulkInsert = db.transaction((games) => {
+            // [החלפה] לולאה על אובייקטים והכנסת הנתונים החדשים
+            for (const game of games) {
+                if(game && game.game_id) {
+                    const pCount = game.participant_count ? parseInt(game.participant_count, 10) : null;
+                    insert.run(game.game_id.trim(), game.name || null, pCount);
+                }
             }
         });
 
-        bulkInsert(game_ids);
-        res.status(201).json({ message: `${game_ids.length} games added or ignored.` });
+        bulkInsert(games_data);
+        res.status(201).json({ message: `${games_data.length} games added or ignored.` });
     } catch (e) {
         console.error('❌ Error bulk adding games:', e);
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
 
+// [שינוי] עדכון נקודת הקצה להחזרת השם ומספר המשתתפים
 app.post('/api/games/assign', (req, res) => {
     try {
         const { client_email } = req.body;
         if (!client_email) return res.status(400).json({ message: 'client_email is required' });
 
-        const availableGame = db.prepare("SELECT game_id FROM games WHERE status = 'available' ORDER BY created_at LIMIT 1").get();
+        // [החלפה] הרחבת השאילתה לשליפת השם ומספר המשתתפים
+        const availableGame = db.prepare("SELECT game_id, name, participant_count FROM games WHERE status = 'available' ORDER BY created_at LIMIT 1").get();
 
         if (!availableGame) {
             return res.status(404).json({ message: 'No available game IDs in the pool.' });
         }
 
-        const game_id = availableGame.game_id;
+        const { game_id, name, participant_count } = availableGame; // [הוספה] חילוץ המידע החדש
         db.prepare("UPDATE games SET client_email = ?, status = 'assigned', assigned_at = CURRENT_TIMESTAMP WHERE game_id = ?")
           .run(client_email, game_id);
 
         console.log(`✅ Game ID ${game_id} assigned to ${client_email}`);
-        res.json({ status: 'success', assigned_game_id: game_id });
+
+        // [החלפה] החזרת כל הנתונים הרלוונטיים בתגובה
+        res.json({ 
+            status: 'success', 
+            assigned_game_id: game_id,
+            name: name,
+            participant_count: participant_count
+        });
     } catch (e) {
         console.error('❌ Error assigning game:', e);
         res.status(500).json({ message: 'Internal Server Error' });

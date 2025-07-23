@@ -17,9 +17,11 @@ console.log(`✅ Connected to SQLite database at ${dbPath}`);
 db.exec(`
 CREATE TABLE IF NOT EXISTS games (
   game_id TEXT PRIMARY KEY,
-  client_email TEXT, -- יהיה ריק בהתחלה
+  name TEXT,                      /* [הוספה] שם פנימי לזיהוי קל */
+  participant_count INTEGER,      /* [הוספה] מספר משתתפים צפוי */
+  client_email TEXT,
   status TEXT DEFAULT 'available', -- available, assigned, completed
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP, -- [שדרוג] שומר על תאריך ההוספה המקורי
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   assigned_at TEXT,
   completed_at TEXT
 );
