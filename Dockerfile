@@ -11,14 +11,19 @@ RUN apt-get update && apt-get install -y \
     librsvg2-dev \
     fonts-noto-core
 
-#⭐️ הגדר משתנה סביבה שיכריח את npm להדר את canvas מהמקור
+# הגדר משתנה סביבה שיכריח את npm להדר את canvas מהמקור
 ENV npm_config_build_from_source=true
 
 # קבע את ספריית העבודה
 WORKDIR /app
 
-# העתק את קבצי התלויות והתקן אותן
+# העתק את קבצי התלויות
 COPY package*.json ./
+
+# ⭐️ נקה את המטמון של npm לפני ההתקנה כדי למנוע שימוש בגרסאות ישנות
+RUN npm cache clean --force
+
+# התקן את התלויות
 RUN npm install --production
 
 # העתק את שאר קבצי האפליקציה
