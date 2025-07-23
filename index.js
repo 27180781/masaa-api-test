@@ -428,7 +428,36 @@ app.get('/images/game-summary/:gameId.png', async (req, res) => { // ⭐️ הו
         res.status(500).send('Error generating image');
     }
 });
+
 // ===================================================================
+//                          🧪 TEST ROUTE
+// ===================================================================
+// נתיב זה נועד לבדיקות עיצוב מהירות ללא צורך בנתוני אמת
+app.get('/images/test/game-summary', async (req, res) => {
+    console.log('🧪 Generating a test image...');
+    try {
+        // 1. נתונים פיקטיביים (Mock Data) במקום קריאה ל-DB
+        const mockGameId = 'משחק-בדיקה-123';
+        const mockProfile = {
+            fire: 35.5,
+            water: 20.1,
+            air: 14.9,
+            earth: 29.5
+        };
+
+        // 2. קריאה לפונקציית יצירת התמונה עם הנתונים הפיקטיביים
+        const canvas = await imageGenerator.createGameSummaryImage(mockGameId, mockProfile);
+
+        // 3. שליחת התמונה לדפדפן
+        res.setHeader('Content-Type', 'image/png');
+        canvas.createPNGStream().pipe(res);
+
+    } catch (error) { 
+        console.error('❌ Error generating test image:', error);
+        res.status(500).send('Error generating test image');
+    }
+});
+===================================================================
 //                          SERVER STARTUP
 // ===================================================================
 const server = http.createServer(app);
