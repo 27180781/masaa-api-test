@@ -1,7 +1,7 @@
 # התחל מתמונת בסיס רשמית של Node.js
 FROM node:20
 
-# התקן את ספריות המערכת הנדרשות ואת חבילת הפונטים עם השם הנכון
+# התקן את ספריות המערכת הנדרשות
 RUN apt-get update && apt-get install -y \
     build-essential \
     libcairo2-dev \
@@ -11,15 +11,15 @@ RUN apt-get update && apt-get install -y \
     librsvg2-dev \
     fonts-noto-core
 
-# קבע את ספריית העבודה (בשורה נפרדת)
+#⭐️ הגדר משתנה סביבה שיכריח את npm להדר את canvas מהמקור
+ENV npm_config_build_from_source=true
+
+# קבע את ספריית העבודה
 WORKDIR /app
 
 # העתק את קבצי התלויות והתקן אותן
 COPY package*.json ./
 RUN npm install --production
-
-# כפה הידור מחדש של canvas מהמקור כדי לקשר אותו לספריות שהותקנו
-RUN npm rebuild canvas --build-from-source
 
 # העתק את שאר קבצי האפליקציה
 COPY . .
