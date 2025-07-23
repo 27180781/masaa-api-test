@@ -428,7 +428,6 @@ app.get('/images/game-summary/:gameId.png', async (req, res) => { // ⭐️ הו
         res.status(500).send('Error generating image');
     }
 });
-
 // ===================================================================
 //                          🧪 TEST ROUTE
 // ===================================================================
@@ -447,7 +446,7 @@ app.get('/images/test/game-summary', async (req, res) => {
 
         // 2. קריאה לפונקציית יצירת התמונה עם הנתונים הפיקטיביים
         const canvas = await imageGenerator.createGameSummaryImage(mockGameId, mockProfile);
-
+        
         // 3. שליחת התמונה לדפדפן
         res.setHeader('Content-Type', 'image/png');
         canvas.createPNGStream().pipe(res);
@@ -457,7 +456,7 @@ app.get('/images/test/game-summary', async (req, res) => {
         res.status(500).send('Error generating test image');
     }
 });
-===================================================================
+
 //                          SERVER STARTUP
 // ===================================================================
 const server = http.createServer(app);
