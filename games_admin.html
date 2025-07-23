@@ -28,8 +28,8 @@
         <div class="form-container">
             <h2>הוספת מזהים חדשים</h2>
             <form id="addGamesForm">
-                <label for="game_ids">הדבק רשימת מזהים (אחד בכל שורה):</label>
-                <textarea id="game_ids" rows="10"></textarea>
+                <label for="game_ids">הדבק רשימת ערכות (כל ערכה בשורה חדשה):</label>
+                <textarea id="game_ids" rows="10" placeholder="פורמט: מזהה,שם,מספר משתתפים&#10;לדוגמה:&#10;GAME123,לקוח א,50&#10;GAME456,לקוח ב,30"></textarea>
                 <br><br>
                 <button type="submit">הוסף למאגר</button>
             </form>
@@ -40,8 +40,14 @@
             <table>
                 <thead>
                     <tr>
-                        <th>מזהה משחק</th><th>סטטוס</th><th>מייל משויך</th>
-                        <th>תאריך שיוך</th><th>תאריך סיום</th><th>פעולות</th>
+                        <th>מזהה משחק</th>
+                        <th>שם</th>
+                        <th>מס' משתתפים</th>
+                        <th>סטטוס</th>
+                        <th>מייל משויך</th>
+                        <th>תאריך שיוך</th>
+                        <th>תאריך סיום</th>
+                        <th>פעולות</th>
                     </tr>
                 </thead>
                 <tbody id="gamesTableBody"></tbody>
@@ -66,8 +72,11 @@
                     if (game.status === 'assigned') statusText = '🟡 משויך';
                     if (game.status === 'completed') statusText = '🔵 הסתיים';
 
+                    // [שינוי] עדכון מבנה שורת הטבלה עם הנתונים החדשים
                     row.innerHTML = `
                         <td><strong>${game.game_id}</strong></td>
+                        <td>${game.name || '-'}</td>
+                        <td>${game.participant_count || '-'}</td>
                         <td>${statusText}</td>
                         <td>${game.client_email || '-'}</td>
                         <td>${game.assigned_at ? new Date(game.assigned_at).toLocaleString('he-IL') : '-'}</td>
@@ -82,15 +91,27 @@
         addGamesForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const idsText = document.getElementById('game_ids').value;
-            const game_ids = idsText.split(/\s+/).filter(id => id.trim() !== '');
+            
+            // [שינוי] לוגיקת פיענוח חדשה עבור פורמט CSV
+            const lines = idsText.split('\n').filter(line => line.trim() !== '');
+            const games_data = lines.map(line => {
+                const parts = line.split(',');
+                if (parts.length < 3) return null; // דרוש לפחות מזהה, שם ומספר
+                return {
+                    game_id: parts[0].trim(),
+                    name: parts[1].trim(),
+                    participant_count: parseInt(parts[2].trim(), 10)
+                };
+            }).filter(Boolean); // סנן שורות לא תקינות
 
-            if (game_ids.length === 0) return alert('נא להזין מזהים');
+            if (games_data.length === 0) return alert('נא להזין נתונים בפורמט הנכון (מזהה,שם,מספר משתתפים)');
 
             try {
+                // [שינוי] שליחת המבנה החדש לשרת
                 const res = await fetch('/api/games/bulk', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ game_ids })
+                    body: JSON.stringify({ games_data }) // שינוי המפתח ל-games_data
                 });
                 if (res.ok) {
                     document.getElementById('game_ids').value = '';
