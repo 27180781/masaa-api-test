@@ -11,11 +11,12 @@ const COLORS = {
     }
 };
 
-// הגדרות פונטים
+// החלף את אובייקט ה-FONTS הקיים באובייקט הבא:
 const FONTS = {
-    title: 'bold 48px FbKanuba', // שימוש בפונט החדש
-    label: '32px FbKanuba',
-    percentage: 'bold 28px FbKanuba'
+    // הפורמט החדש: "שם הפונט, משקל, גודל"
+    title: 'FbKanuba Bold 48',
+    label: 'FbKanuba 32',
+    percentage: 'FbKanuba Bold 28'
 };
 
 const LAYOUT = {
