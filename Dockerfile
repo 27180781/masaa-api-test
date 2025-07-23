@@ -9,16 +9,16 @@ RUN apt-get update && apt-get install -y \
     libjpeg-dev \
     libgif-dev \
     librsvg2-dev \
+    fonts-noto-hebrew
 
-# קבע את ספריית העבודה בתוך הקונטיינר
+# קבע את ספריית העבודה בתוך הקונטיינר (בשורה נפרדת)
 WORKDIR /app
 
 # העתק את קבצי התלויות והתקן אותן
 COPY package*.json ./
 RUN npm install --production
 
-# ⚙️ הוספת שורה זו כדי לכפות הידור מחדש של canvas מהמקור.
-# פעולה זו תוודא שהספרייה תקושר לספריות ה-Pango שהתקנו.
+# כפה הידור מחדש של canvas מהמקור
 RUN npm rebuild canvas --build-from-source
 
 # העתק את שאר קבצי האפליקציה
