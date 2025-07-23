@@ -3,6 +3,9 @@
 // ===================================================================
 require('dotenv').config(); // [תיקון אבטחה] טוען משתני סביבה מהקובץ .env
 const express = require('express');
+const { registerFont } = require('canvas');
+registerFont('./assets/FbKanuba-Regular.ttf', { family: 'FbKanuba' });
+registerFont('./assets/FbKanuba-Bold.ttf', { family: 'FbKanuba', weight: 'bold' });
 const path = require('path');
 const cors = require('cors');
 const axios = require('axios');
@@ -12,6 +15,7 @@ const http = require('http');
 const { Server } = require("socket.io");
 const basicAuth = require('express-basic-auth');
 const celery = require('celery-node');
+const imageGenerator = require('./image-generator/generator.js'); // <--- הוסף את השורה הזו
 
 const celeryClient = celery.createClient(
   process.env.REDIS_URL, // משתמש במשתנה הסביבה לכתובת הרדיס
@@ -399,37 +403,31 @@ for (const participantResult of individual_results) {
     }
 });
 // --- API ליצירת תמונות ---
-app.get('/images/game-summary/:gameId.png', (req, res) => {
+app.get('/images/game-summary/:gameId.png', async (req, res) => { // ⭐️ הוספת async
     try {
         const { gameId } = req.params;
         const row = db.prepare('SELECT game_average_profile FROM game_summaries WHERE game_id = ?').get(gameId);
-        if (!row) return res.status(404).send('Results not found for this game ID');
+        
+        if (!row) {
+            return res.status(404).send('Results not found for this game ID');
+        }
+        
         const profile = JSON.parse(row.game_average_profile);
-        if (!profile) return res.status(404).send('No average profile found for this game');
-        const width = 800; const height = 400;
-        const canvas = createCanvas(width, height);
-        const context = canvas.getContext('2d');
-        context.fillStyle = '#f7f8fb'; context.fillRect(0, 0, width, height);
-        context.fillStyle = '#1d5b85'; context.font = 'bold 30px Arial';
-        context.textAlign = 'center'; context.fillText(`סיכום תוצאות למשחק: ${gameId}`, width / 2, 50);
-        const elements = Object.keys(profile);
-        const barWidth = 100; const barMargin = 50;
-        const chartHeight = 250; const startX = (width - (elements.length * (barWidth + barMargin) - barMargin)) / 2;
-        elements.forEach((element, index) => {
-            const barHeight = (profile[element] / 100) * chartHeight;
-            const x = startX + index * (barWidth + barMargin);
-            const y = height - 70 - barHeight;
-            const color = {fire: '#e74c3c', water: '#3498db', air: '#f1c40f', earth: '#2ecc71'}[element] || '#ccc';
-            context.fillStyle = color; context.fillRect(x, y, barWidth, barHeight);
-            context.fillStyle = '#333'; context.font = 'bold 18px Arial';
-            context.fillText(`${profile[element].toFixed(1)}%`, x + barWidth / 2, y - 10);
-            context.font = '20px Arial'; context.fillText(element, x + barWidth / 2, height - 30);
-        });
+        if (!profile) {
+            return res.status(404).send('No average profile found for this game');
+        }
+
+        // ✨ קריאה אסינכרונית למודול החדש
+        const canvas = await imageGenerator.createGameSummaryImage(gameId, profile); // ⭐️ הוספת await
+        
         res.setHeader('Content-Type', 'image/png');
         canvas.createPNGStream().pipe(res);
-    } catch (error) { console.error('❌ Error generating image:', error); res.status(500).send('Error generating image'); }
-});
 
+    } catch (error) { 
+        console.error('❌ Error generating image:', error);
+        res.status(500).send('Error generating image');
+    }
+});
 // ===================================================================
 //                          SERVER STARTUP
 // ===================================================================
