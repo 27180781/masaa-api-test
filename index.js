@@ -407,8 +407,8 @@ app.post('/api/submit-results', async (req, res) => {
             const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
             
             if (process.env.LOG_LEVEL === 'debug') {
-    console.log(`[DEBUG] Profile sent to calculation: ${JSON.stringify(profile)}`);
-}
+                console.log(`[DEBUG] Profile sent to calculation: ${JSON.stringify(profile)}`);
+            }
             const matchResult = findClosestArchetype(profile);
             const archetype_id = matchResult && matchResult.archetype ? matchResult.archetype.type_id : null;
             const archetype_score = matchResult && matchResult.score !== Infinity ? matchResult.score : null;
