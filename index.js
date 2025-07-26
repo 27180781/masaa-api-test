@@ -214,25 +214,7 @@ app.post('/api/games/assign', (req, res) => {
     }
 });
 
-        const { game_id, name, participant_count } = availableGame; // [הוספה] חילוץ המידע החדש
-        db.prepare("UPDATE games SET client_email = ?, status = 'assigned', assigned_at = CURRENT_TIMESTAMP WHERE game_id = ?")
-          .run(client_email, game_id);
-
-        console.log(`✅ Game ID ${game_id} assigned to ${client_email}`);
-
-        // [החלפה] החזרת כל הנתונים הרלוונטיים בתגובה
-        res.json({ 
-            status: 'success', 
-            assigned_game_id: game_id,
-            name: name,
-            participant_count: participant_count
-        });
-    } catch (e) {
-        console.error('❌ Error assigning game:', e);
-        res.status(500).json({ message: 'Internal Server Error' });
-    }
-});
-
+   
 app.delete('/api/games/:gameId', (req, res) => {
     try {
         const { gameId } = req.params;
