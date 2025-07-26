@@ -279,7 +279,7 @@ app.get('/api/results/:gameId', (req, res) => {
     }
     
     return { archetype: bestMatch, score: minDifference };
-}
+
 function processInsightsForProfile(profile, insights) {
     if (!insights || !profile) return null;
     const getDominantElement = (p) => Object.keys(p).reduce((a, b) => p[a] > p[b] ? a : b);
