@@ -167,29 +167,41 @@
         .question-id-group {
             display: flex;
             align-items: center;
-            background-color: #f2f2f2;
             border: 1px solid #ccc;
             border-radius: 5px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            background-color: white; /* Make background white */
+        }
+        
+        .question-id-group:focus-within {
+             outline: none;
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
         }
 
         .question-id-prefix {
             padding: 12px;
             font-weight: bold;
             color: var(--dark-grey);
+            background-color: #f2f2f2;
+            border-left: 1px solid #ccc;
         }
 
         #question_number {
             border: none;
             background: transparent;
-            width: auto;
-            min-width: 50px;
+            flex-grow: 1;
+            padding: 12px;
             font-weight: bold;
             font-size: 1.1em;
             color: var(--primary-color);
+            width: auto;
+            min-width: 50px;
         }
         
         #question_number:focus {
             box-shadow: none;
+            outline: none;
         }
 
 
@@ -227,10 +239,10 @@
         <form id="addQuestionForm">
             <div class="form-grid">
                 <div class="form-group">
-                    <label for="question_number">מזהה שאלה:</label>
+                    <label for="question_number">מזהה שאלה (ניתן לעריכה):</label>
                     <div class="question-id-group">
                         <span class="question-id-prefix">q</span>
-                        <input type="number" id="question_number" name="question_number" required readonly style="background-color: #e9ecef;">
+                        <input type="number" id="question_number" name="question_number" required>
                     </div>
                 </div>
 
@@ -336,7 +348,7 @@
                     questionsList.appendChild(li);
                 });
                 
-                // Set the next available question number
+                // Set the next available question number as a suggestion
                 questionNumberInput.value = maxId + 1;
 
             } catch (error) {
@@ -361,8 +373,9 @@
         addQuestionForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const formData = new FormData(addQuestionForm);
+            // The value is taken from the input, whether it was auto-suggested or manually entered
             const newQuestion = {
-                question_id: 'q' + formData.get('question_number'), // Construct the ID
+                question_id: 'q' + formData.get('question_number'),
                 question_text: formData.get('question_text'),
                 answers_mapping: {
                     '1': formData.get('ans1'), '2': formData.get('ans2'),
@@ -382,7 +395,7 @@
                     document.getElementById('ans2').value = 'water';
                     document.getElementById('ans3').value = 'air';
                     document.getElementById('ans4').value = 'earth';
-                    fetchQuestions(); // Refresh list which will also update the next question number
+                    fetchQuestions(); // Refresh list which will also update the next suggested number
                 } else {
                     const errorData = await res.json();
                     alert(`שגיאה בהוספת שאלה: ${errorData.message || 'פרטים לא תקינים'}`);
@@ -442,7 +455,6 @@
                 }
             }, { offset: Number.NEGATIVE_INFINITY }).element;
         }
-
 
         // Initial fetch
         fetchQuestions();
