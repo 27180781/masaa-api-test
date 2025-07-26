@@ -7,6 +7,7 @@
         body { font-family: Arial, sans-serif; padding: 20px; max-width: 1200px; margin: auto; }
         h1, h2 { color: #1d5b85; }
         nav a { margin-left: 20px; font-size: 18px; }
+        .dashboard-container { margin-bottom: 30px; background-color: #f7f8fb; border: 1px solid #ddd; border-radius: 8px; padding: 20px; }
         .container { display: grid; grid-template-columns: 1fr 2fr; gap: 30px; }
         .form-container, .table-container { background-color: #f7f8fb; border: 1px solid #ddd; border-radius: 8px; padding: 20px; }
         textarea { width: 100%; box-sizing: border-box; }
@@ -23,6 +24,12 @@
         <a href="/games_admin">ניהול משחקים</a>
     </nav>
     <h1>ניהול מאגר מזהי משחק</h1>
+
+    <div class="dashboard-container">
+        <h2>📊 סיכום מצב המשחקים</h2>
+        <div id="dashboardSummary">
+             </div>
+    </div>
 
     <div class="container">
         <div class="form-container">
@@ -72,7 +79,6 @@
                     if (game.status === 'assigned') statusText = '🟡 משויך';
                     if (game.status === 'completed') statusText = '🔵 הסתיים';
 
-                    // [שינוי] עדכון מבנה שורת הטבלה עם הנתונים החדשים
                     row.innerHTML = `
                         <td><strong>${game.game_id}</strong></td>
                         <td>${game.name || '-'}</td>
@@ -88,34 +94,68 @@
             } catch (error) { console.error('Error fetching games:', error); }
         }
 
+        async function fetchDashboardSummary() {
+            try {
+                const response = await fetch('/api/games/summary');
+                const summary = await response.json();
+                const container = document.getElementById('dashboardSummary');
+                container.innerHTML = ''; // ניקוי תוכן קודם
+
+                if (Object.keys(summary).length === 0) {
+                    container.innerHTML = '<p>לא נמצאו משחקים עם מספר משתתפים מוגדר.</p>';
+                    return;
+                }
+
+                const summaryHtml = Object.entries(summary).map(([count, data]) => {
+                    const available = data.available || 0;
+                    const assigned = data.assigned || 0;
+                    const completed = data.completed || 0;
+                    
+                    return `
+                        <p style="border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px;">
+                            <strong>מאגר משחקים עבור ${count} משתתפים:</strong> סה"כ ${data.total} משחקים.
+                            <br>
+                            <span style="color: #27ae60;">✅ פנויים: ${available}</span> | 
+                            <span style="color: #f39c12;">🟡 בשימוש: ${assigned}</span> | 
+                            <span style="color: #3498db;">🔵 הסתיימו: ${completed}</span>
+                        </p>
+                    `;
+                }).join('');
+
+                container.innerHTML = summaryHtml;
+            } catch (error) {
+                console.error('Error fetching dashboard summary:', error);
+                document.getElementById('dashboardSummary').innerHTML = '<p>שגיאה בטעינת סיכום הנתונים.</p>';
+            }
+        }
+
         addGamesForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const idsText = document.getElementById('game_ids').value;
             
-            // [שינוי] לוגיקת פיענוח חדשה עבור פורמט CSV
             const lines = idsText.split('\n').filter(line => line.trim() !== '');
             const games_data = lines.map(line => {
                 const parts = line.split(',');
-                if (parts.length < 3) return null; // דרוש לפחות מזהה, שם ומספר
+                if (parts.length < 3) return null; 
                 return {
                     game_id: parts[0].trim(),
                     name: parts[1].trim(),
                     participant_count: parseInt(parts[2].trim(), 10)
                 };
-            }).filter(Boolean); // סנן שורות לא תקינות
+            }).filter(Boolean);
 
             if (games_data.length === 0) return alert('נא להזין נתונים בפורמט הנכון (מזהה,שם,מספר משתתפים)');
 
             try {
-                // [שינוי] שליחת המבנה החדש לשרת
                 const res = await fetch('/api/games/bulk', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ games_data }) // שינוי המפתח ל-games_data
+                    body: JSON.stringify({ games_data })
                 });
                 if (res.ok) {
                     document.getElementById('game_ids').value = '';
                     fetchGames();
+                    fetchDashboardSummary(); // עדכון הדשבורד
                 } else { alert('Error adding games'); }
             } catch (error) { console.error('Error adding games:', error); }
         });
@@ -124,12 +164,18 @@
             if (!confirm(`האם למחוק את המשחק ${gameId}?`)) return;
             try {
                 const res = await fetch(`/api/games/${gameId}`, { method: 'DELETE' });
-                if (res.ok) fetchGames();
-                else alert('Error deleting game');
+                if (res.ok) {
+                    fetchGames();
+                    fetchDashboardSummary(); // עדכון הדשבורד
+                } else { 
+                    alert('Error deleting game');
+                }
             } catch(e) { console.error('Error:', e); }
         }
 
+        // טעינת הנתונים הראשונית
         fetchGames();
+        fetchDashboardSummary();
     </script>
 </body>
 </html>

@@ -4,77 +4,302 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ניהול שאלות</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; color: #333; }
-        h1, h2 { color: #1d5b85; }
-        .question-list { list-style: none; padding: 0; }
-        .question-item { background-color: #f7f8fb; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 10px; padding: 15px; cursor: move; transition: background-color 0.2s ease; }
-        .question-item:hover { background-color: #f0f2f5; }
-        .question-item.dragging { opacity: 0.5; background: #eaf4f9; }
-        .question-item button { background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; float: left; }
-        .form-container { background-color: #eaf4f9; padding: 20px; border-radius: 5px; margin-top: 30px; }
-        input[type="text"], select { width: calc(100% - 20px); padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 3px; }
-        button[type="submit"] { background-color: #2ecc71; color: white; padding: 10px 20px; border: none; border-radius: 3px; font-size: 16px; cursor: pointer; }
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --success-color: #27ae60;
+            --danger-color: #e74c3c;
+            --light-bg: #ecf0f1;
+            --white: #ffffff;
+            --grey: #bdc3c7;
+            --dark-grey: #7f8c8d;
+            --font-family: 'Heebo', sans-serif;
+            --shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            --border-radius: 8px;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--light-bg);
+            color: var(--primary-color);
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        h1, h2 {
+            color: var(--primary-color);
+            text-align: center;
+            font-weight: 700;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        h2 {
+            font-size: 1.8em;
+            margin-bottom: 30px;
+            color: var(--dark-grey);
+            font-weight: 500;
+        }
+
+        .question-list {
+            list-style: none;
+            padding: 0;
+            margin-bottom: 40px;
+        }
+
+        .question-item {
+            display: flex;
+            align-items: center;
+            background-color: var(--white);
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            margin-bottom: 15px;
+            padding: 20px;
+            cursor: move;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: var(--shadow);
+        }
+
+        .question-item:hover {
+            background-color: #f8f9fa;
+            transform: translateY(-2px);
+        }
+
+        .question-item.dragging {
+            opacity: 0.7;
+            background: #eaf4f9;
+        }
+        
+        .drag-handle {
+            margin-left: 15px;
+            color: var(--grey);
+            cursor: grab;
+        }
+        .drag-handle:active {
+             cursor: grabbing;
+        }
+
+        .question-content {
+            flex-grow: 1;
+        }
+        
+        .question-item button.delete-btn {
+            background-color: transparent;
+            color: var(--danger-color);
+            border: none;
+            padding: 5px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2em;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            margin-right: 15px;
+        }
+
+        .question-item button.delete-btn:hover {
+            background-color: #e74c3c20;
+        }
+
+        .form-container {
+            background-color: var(--white);
+            padding: 30px 40px;
+            border-radius: var(--border-radius);
+            margin-top: 30px;
+            box-shadow: var(--shadow);
+        }
+        
+        .form-container h2 {
+            margin-top: 0;
+            margin-bottom: 25px;
+            font-size: 1.6em;
+            text-align: right;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--dark-grey);
+        }
+
+        input[type="text"], input[type="number"], select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-family: var(--font-family);
+            font-size: 1em;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+        }
+        
+        .question-id-group {
+            display: flex;
+            align-items: center;
+            background-color: #f2f2f2;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .question-id-prefix {
+            padding: 12px;
+            font-weight: bold;
+            color: var(--dark-grey);
+        }
+
+        #question_number {
+            border: none;
+            background: transparent;
+            width: auto;
+            min-width: 50px;
+            font-weight: bold;
+            font-size: 1.1em;
+            color: var(--primary-color);
+        }
+        
+        #question_number:focus {
+            box-shadow: none;
+        }
+
+
+        button[type="submit"] {
+            background: linear-gradient(45deg, var(--success-color), #2ed573);
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.1em;
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 15px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        button[type="submit"]:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(46, 213, 115, 0.4);
+        }
+
     </style>
 </head>
 <body>
 
-    <h1>ניהול שאלות - מסע אל תוך עצמי</h1>
+    <h1>ניהול שאלות</h1>
+    <h2>מסע אל תוך עצמי</h2>
 
-    <h2>רשימת השאלות הקיימות (ניתן למיין בגרירה)</h2>
     <ul id="questionsList" class="question-list"></ul>
 
     <div class="form-container">
         <h2>הוספת שאלה חדשה</h2>
         <form id="addQuestionForm">
-            <label for="question_id">מזהה שאלה (לדוגמה: q5):</label>
-            <input type="text" id="question_id" name="question_id" required>
-            
-            <label for="question_text">נוסח השאלה:</label>
-            <input type="text" id="question_text" name="question_text" required>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="question_number">מזהה שאלה:</label>
+                    <div class="question-id-group">
+                        <span class="question-id-prefix">q</span>
+                        <input type="number" id="question_number" name="question_number" required readonly style="background-color: #e9ecef;">
+                    </div>
+                </div>
 
-            <h4>שיוך תשובות:</h4>
-            
-            <label for="ans1">תשובה 1 משויכת ל:</label>
-            <select id="ans1" name="ans1" required>
-                <option value="fire" selected>אש</option>
-                <option value="water">מים</option>
-                <option value="air">רוח</option>
-                <option value="earth">עפר</option>
-            </select>
-            
-            <label for="ans2">תשובה 2 משויכת ל:</label>
-            <select id="ans2" name="ans2" required>
-                <option value="fire">אש</option>
-                <option value="water" selected>מים</option>
-                <option value="air">רוח</option>
-                <option value="earth">עפר</option>
-            </select>
+                <div class="form-group full-width">
+                    <label for="question_text">נוסח השאלה:</label>
+                    <input type="text" id="question_text" name="question_text" placeholder="לדוגמה: מהו החלום הגדול ביותר שלך?" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="ans1">תשובה 1 משויכת ל:</label>
+                    <select id="ans1" name="ans1" required>
+                        <option value="fire" selected>🔥 אש</option>
+                        <option value="water">💧 מים</option>
+                        <option value="air">💨 רוח</option>
+                        <option value="earth">🌍 עפר</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="ans2">תשובה 2 משויכת ל:</label>
+                    <select id="ans2" name="ans2" required>
+                        <option value="fire">🔥 אש</option>
+                        <option value="water" selected>💧 מים</option>
+                        <option value="air">💨 רוח</option>
+                        <option value="earth">🌍 עפר</option>
+                    </select>
+                </div>
 
-            <label for="ans3">תשובה 3 משויכת ל:</label>
-            <select id="ans3" name="ans3" required>
-                <option value="fire">אש</option>
-                <option value="water">מים</option>
-                <option value="air" selected>רוח</option>
-                <option value="earth">עפר</option>
-            </select>
+                <div class="form-group">
+                    <label for="ans3">תשובה 3 משויכת ל:</label>
+                    <select id="ans3" name="ans3" required>
+                        <option value="fire">🔥 אש</option>
+                        <option value="water">💧 מים</option>
+                        <option value="air" selected>💨 רוח</option>
+                        <option value="earth">🌍 עפר</option>
+                    </select>
+                </div>
 
-            <label for="ans4">תשובה 4 משויכת ל:</label>
-            <select id="ans4" name="ans4" required>
-                <option value="fire">אש</option>
-                <option value="water">מים</option>
-                <option value="air">רוח</option>
-                <option value="earth" selected>עפר</option>
-            </select>
-
-            <br><br>
-            <button type="submit">הוסף שאלה</button>
+                <div class="form-group">
+                    <label for="ans4">תשובה 4 משויכת ל:</label>
+                    <select id="ans4" name="ans4" required>
+                        <option value="fire">🔥 אש</option>
+                        <option value="water">💧 מים</option>
+                        <option value="air">💨 רוח</option>
+                        <option value="earth" selected>🌍 עפר</option>
+                    </select>
+                </div>
+                
+                <div class="form-group full-width">
+                    <button type="submit">הוסף שאלה חדשה ✨</button>
+                </div>
+            </div>
         </form>
     </div>
 
     <script>
         const questionsList = document.getElementById('questionsList');
         const addQuestionForm = document.getElementById('addQuestionForm');
+        const questionNumberInput = document.getElementById('question_number');
+
+        function getElementEmoji(element) {
+            switch (element) {
+                case 'fire': return '🔥';
+                case 'water': return '💧';
+                case 'air': return '💨';
+                case 'earth': return '🌍';
+                default: return '';
+            }
+        }
 
         async function fetchQuestions() {
             try {
@@ -82,33 +307,54 @@
                 const questions = await response.json();
                 
                 questionsList.innerHTML = '';
+                let maxId = 0;
+
                 questions.forEach(q => {
+                    const currentId = parseInt(q.question_id.replace('q', ''), 10);
+                    if (!isNaN(currentId) && currentId > maxId) {
+                        maxId = currentId;
+                    }
+
                     const li = document.createElement('li');
                     li.className = 'question-item';
                     li.setAttribute('draggable', 'true');
                     li.dataset.questionId = q.question_id;
 
                     li.innerHTML = `
-                        <button onclick="deleteQuestion('${q.question_id}')">מחק</button>
-                        <strong>${q.question_id}:</strong> ${q.question_text}
-                        <br><small>1: ${q.answers_mapping['1']}, 2: ${q.answers_mapping['2']}, 3: ${q.answers_mapping['3']}, 4: ${q.answers_mapping['4']}</small>
+                        <span class="drag-handle">☰</span>
+                        <button class="delete-btn" onclick="deleteQuestion('${q.question_id}', event)">🗑️</button>
+                        <div class="question-content">
+                            <strong>${q.question_id}:</strong> ${q.question_text}
+                            <br><small style="color: var(--dark-grey);">
+                                1: ${getElementEmoji(q.answers_mapping['1'])} ${q.answers_mapping['1']}, 
+                                2: ${getElementEmoji(q.answers_mapping['2'])} ${q.answers_mapping['2']}, 
+                                3: ${getElementEmoji(q.answers_mapping['3'])} ${q.answers_mapping['3']}, 
+                                4: ${getElementEmoji(q.answers_mapping['4'])} ${q.answers_mapping['4']}
+                            </small>
+                        </div>
                     `;
                     questionsList.appendChild(li);
                 });
+                
+                // Set the next available question number
+                questionNumberInput.value = maxId + 1;
+
             } catch (error) {
                 console.error('Error fetching questions:', error);
+                questionsList.innerHTML = '<p style="text-align: center; color: var(--danger-color);">שגיאה בטעינת השאלות.</p>';
             }
         }
 
-        async function deleteQuestion(questionId) {
+        async function deleteQuestion(questionId, event) {
             // Prevent the drag event from firing when clicking the button
             event.stopPropagation();
             if (!confirm(`האם אתה בטוח שברצונך למחוק את שאלה ${questionId}?`)) return;
             try {
                 await fetch(`/api/questions/${questionId}`, { method: 'DELETE' });
-                fetchQuestions();
+                fetchQuestions(); // Refresh the list
             } catch (error) {
                 console.error('Error deleting question:', error);
+                alert('שגיאה במחיקת השאלה.');
             }
         }
 
@@ -116,7 +362,7 @@
             e.preventDefault();
             const formData = new FormData(addQuestionForm);
             const newQuestion = {
-                question_id: formData.get('question_id'),
+                question_id: 'q' + formData.get('question_number'), // Construct the ID
                 question_text: formData.get('question_text'),
                 answers_mapping: {
                     '1': formData.get('ans1'), '2': formData.get('ans2'),
@@ -131,17 +377,19 @@
                 });
                 if (res.ok) {
                     addQuestionForm.reset();
-                    // Reset selects to default values
+                    // Reset selects to default visual values
                     document.getElementById('ans1').value = 'fire';
                     document.getElementById('ans2').value = 'water';
                     document.getElementById('ans3').value = 'air';
                     document.getElementById('ans4').value = 'earth';
-                    fetchQuestions();
+                    fetchQuestions(); // Refresh list which will also update the next question number
                 } else {
-                    alert('Error adding question');
+                    const errorData = await res.json();
+                    alert(`שגיאה בהוספת שאלה: ${errorData.message || 'פרטים לא תקינים'}`);
                 }
             } catch (error) {
                 console.error('Error adding question:', error);
+                alert('שגיאה בהוספת השאלה. בדוק את החיבור לשרת.');
             }
         });
         
@@ -161,6 +409,10 @@
              if (draggedItem) {
                 draggedItem.classList.remove('dragging');
                 draggedItem = null;
+                 // Here you might want to send the new order to the server
+                const newOrder = [...questionsList.querySelectorAll('.question-item')].map(item => item.dataset.questionId);
+                console.log('New question order:', newOrder);
+                // Example: await fetch('/api/questions/order', { method: 'POST', body: JSON.stringify({order: newOrder}) });
             }
         });
 
@@ -168,10 +420,12 @@
             e.preventDefault();
             const afterElement = getDragAfterElement(questionsList, e.clientY);
             const currentlyDragged = document.querySelector('.dragging');
-            if (afterElement == null) {
-                questionsList.appendChild(currentlyDragged);
-            } else {
-                questionsList.insertBefore(currentlyDragged, afterElement);
+            if (currentlyDragged) {
+                if (afterElement == null) {
+                    questionsList.appendChild(currentlyDragged);
+                } else {
+                    questionsList.insertBefore(currentlyDragged, afterElement);
+                }
             }
         });
 
@@ -190,6 +444,7 @@
         }
 
 
+        // Initial fetch
         fetchQuestions();
     </script>
 

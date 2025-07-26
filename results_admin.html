@@ -4,23 +4,136 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>דשבורד תוצאות</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
     <style>
-        body { font-family: Arial, sans-serif; max-width: 1400px; margin: 20px auto; color: #333; display: flex; gap: 20px;}
-        nav a { margin-left: 20px; font-size: 18px; display: block; margin-bottom: 10px; }
-        .sidebar { flex-basis: 300px; flex-shrink: 0; }
-        .main-content { flex-grow: 1; }
-        h1, h2, h3 { color: #1d5b85; border-bottom: 1px solid #ddd; padding-bottom: 5px;}
-        .game-list { list-style: none; padding: 0; max-height: 80vh; overflow-y: auto; }
-        .game-item { background-color: #f7f8fb; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 10px; padding: 15px; cursor: pointer; }
-        .game-item.active, .game-item:hover { background-color: #eaf4f9; border-color: #3295c7; }
-        #gameDetails { min-height: 400px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: right; vertical-align: top; }
-        th { background-color: #f2f2f2; }
-        .profile-bar { display: inline-block; height: 10px; background-color: #3295c7; border-radius: 5px; }
-        .insight-text { font-size: 0.9em; }
-        .insight-text p { margin: 0 0 5px 0; }
-        .insight-text strong { color: #1d5b85; }
+        :root {
+            --primary-color: #007bff;
+            --secondary-color: #6c757d;
+            --bg-color: #f8f9fa;
+            --sidebar-bg: #ffffff;
+            --card-bg: #ffffff;
+            --text-color: #212529;
+            --border-color: #dee2e6;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            --border-radius: 8px;
+        }
+        body {
+            font-family: 'Assistant', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+        }
+        .sidebar {
+            width: 320px;
+            background-color: var(--sidebar-bg);
+            border-left: 1px solid var(--border-color);
+            padding: 20px;
+            height: 100vh;
+            position: sticky;
+            top: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar h2 {
+            margin: 0 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 700;
+        }
+        .sidebar nav a {
+            display: block;
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            text-decoration: none;
+            color: var(--secondary-color);
+            border-radius: var(--border-radius);
+            font-weight: 600;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .sidebar nav a:hover {
+            background-color: #e9ecef;
+            color: var(--primary-color);
+        }
+        .sidebar nav a.active {
+             background-color: var(--primary-color);
+             color: white;
+        }
+        .game-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        .game-item {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            margin-bottom: 12px;
+            padding: 15px;
+            cursor: pointer;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .game-item.active, .game-item:hover {
+            border-color: var(--primary-color);
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.15);
+        }
+        .game-item strong { font-weight: 600; color: var(--text-color); }
+        .game-item small { color: var(--secondary-color); font-size: 0.9em; }
+        .main-content {
+            flex-grow: 1;
+            padding: 30px;
+            max-width: calc(100% - 320px);
+        }
+        h1, h2, h3 {
+            font-weight: 700;
+            color: #343a40;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        #gameDetails .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            margin-bottom: 25px;
+            box-shadow: var(--shadow);
+            padding: 25px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 12px 15px;
+            text-align: right;
+            vertical-align: top;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: 600;
+        }
+        tbody tr:nth-child(even) { background-color: #f8f9fa; }
+
+        /* ⭐️ עיצוב חדש לציון הסטייה */
+        .score-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            color: white;
+            font-size: 0.8em;
+            font-weight: 700;
+        }
+        .score-good { background-color: #28a745; }
+        .score-medium { background-color: #ffc107; color: #212529; }
+        .score-bad { background-color: #dc3545; }
+        
     </style>
 </head>
 <body>
@@ -28,7 +141,7 @@
         <nav>
             <a href="/admin">ניהול שאלות</a>
             <a href="/games_admin">ניהול משחקים</a>
-            <a href="/results_admin">דשבורד תוצאות</a>
+            <a href="/results_admin" class="active">דשבורד תוצאות</a>
             <a href="/insights_admin">ניהול תובנות</a>
         </nav>
         <h2>משחקים שמורים</h2>
@@ -38,53 +151,42 @@
     <div class="main-content">
         <h1>דשבורד תוצאות</h1>
         <div id="gameDetails">
-            <p>בחר משחק מהרשימה כדי לראות את פרטיו.</p>
+            <div class="card" style="text-align: center; padding: 50px;">
+                <h2>ברוכים הבאים</h2>
+                <p>יש לבחור משחק מהרשימה בצד ימין כדי להציג את פרטיו המלאים.</p>
+            </div>
         </div>
     </div>
 <script>
     const gamesList = document.getElementById('gamesList');
     const gameDetails = document.getElementById('gameDetails');
 
+    // ⭐️ פונקציית עזר חדשה לקביעת צבע הציון
+    function getScoreColor(score) {
+        if (score === null || typeof score === 'undefined') return '';
+        if (score <= 30) return 'score-good';
+        if (score <= 70) return 'score-medium';
+        return 'score-bad';
+    }
+
     function getDominantElement(profile) {
         if (!profile || Object.keys(profile).length === 0) return null;
         return Object.keys(profile).reduce((a, b) => profile[a] > profile[b] ? a : b);
     }
 
-    function generateInsightHTML(profile, insights) {
-        if (!insights || !profile) return '<p>אין נתוני תובנות</p>';
-
-        const dominantElement = getDominantElement(profile);
-        let html = `<div class="insight-text">`;
-        
-        if (dominantElement && insights.dominant_insights && insights.dominant_insights[dominantElement]) {
-            html += `<p><strong>התכונה הדומיננטית:</strong> ${insights.dominant_insights[dominantElement]}</p><hr style="margin: 5px 0;">`;
-        }
-
-        html += `<p><strong>פירוט נוסף:</strong></p><ul style="padding-right: 20px; margin: 0;">`;
-        for (const [element, value] of Object.entries(profile)) {
-            if (insights.general_insights && insights.general_insights[element]) {
-                const sortedRules = insights.general_insights[element].sort((a,b) => b.min_percent - a.min_percent);
-                const applicableRule = sortedRules.find(rule => value >= rule.min_percent);
-                if (applicableRule) {
-                    html += `<li><strong>${element}:</strong> ${applicableRule.text}</li>`;
-                }
-            }
-        }
-        html += '</ul></div>';
-        return html;
-    }
-
     function createProfileBars(profile) {
-        let barsHtml = '<div style="font-size: 0.8em; width: 200px;">';
-        for (const [element, value] of Object.entries(profile)) {
+        if (!profile) return '';
+        let barsHtml = '<div style="font-size: 0.9em; width: 220px;">';
+        const sortedProfile = Object.entries(profile).sort(([,a],[,b]) => b-a);
+        for (const [element, value] of sortedProfile) {
             const color = {fire: '#e74c3c', water: '#3498db', air: '#f1c40f', earth: '#2ecc71'}[element] || '#ccc';
             barsHtml += `
-                <div>
-                    <span style="display: inline-block; width: 50px;">${element}:</span>
-                    <div style="display: inline-block; width: 100px; background-color: #eee; border-radius: 5px;">
-                        <div class="profile-bar" style="width: ${value.toFixed(0)}%; background-color: ${color};"></div>
+                <div style="margin-bottom: 4px;">
+                    <span style="display: inline-block; width: 50px; font-weight: 600;">${element}</span>
+                    <div style="display: inline-block; width: 100px; background-color: #e9ecef; border-radius: 5px; height: 8px; vertical-align: middle;">
+                        <div style="width: ${value.toFixed(0)}%; background-color: ${color}; height: 100%; border-radius: 5px;"></div>
                     </div>
-                    <span style="margin-right: 5px;">${value.toFixed(1)}%</span>
+                    <span style="margin-right: 8px; font-weight: 400; font-size: 0.9em;">${value.toFixed(1)}%</span>
                 </div>
             `;
         }
@@ -95,50 +197,56 @@
         try {
             document.querySelectorAll('.game-item').forEach(item => item.classList.remove('active'));
             document.querySelector(`[data-game-id="${gameId}"]`).classList.add('active');
-            gameDetails.innerHTML = '<p>טוען נתונים...</p>';
+            gameDetails.innerHTML = '<div class="card" style="text-align: center; padding: 50px;"><p>טוען נתונים...</p></div>';
 
-            const [resultsRes, insightsRes] = await Promise.all([
-                fetch(`/api/results/${gameId}`),
-                fetch('/api/insights')
-            ]);
-            
-            if (!resultsRes.ok || !insightsRes.ok) throw new Error('Failed to fetch data');
-
+            const resultsRes = await fetch(`/api/results/${gameId}`);
+            if (!resultsRes.ok) throw new Error('Failed to fetch results');
             const details = await resultsRes.json();
-            const insights = await insightsRes.json();
-let generalAverageHtml = '';
-if (details.game_average_profile) {
-    generalAverageHtml = `
-        <h3>ממוצע כלל המשתתפים</h3>
-        <table>
-            <tr><th>פרופיל כללי</th></tr>
-            <tr><td>${createProfileBars(details.game_average_profile)}</td></tr>
-        </table>
-    `;
-}
             
-            let individualHtml = '<h3>תוצאות אישיות, קודים ותובנות</h3><table><thead><tr><th>שם וקבוצה</th><th>קוד גישה</th><th>פרופיל באחוזים</th><th>ניתוח אישיות (תכונות)</th></tr></thead><tbody>';
+            // ⭐️ בניית HTML מודולרית עם "כרטיסים"
+            let generalAverageHtml = '';
+            if (details.game_average_profile) {
+                generalAverageHtml = `
+                    <div class="card">
+                        <h3>ממוצע כלל המשתתפים</h3>
+                        ${createProfileBars(details.game_average_profile)}
+                    </div>
+                `;
+            }
+
+            let groupHtml = '';
+            if (details.group_results && Object.keys(details.group_results).length > 0) {
+                 groupHtml = `<div class="card"><h3>תוצאות קבוצתיות</h3><table><thead><tr><th>קבוצה</th><th>משתתפים</th><th>פרופיל ממוצע</th></tr></thead><tbody>`;
+                for (const [groupName, data] of Object.entries(details.group_results)) {
+                    groupHtml += `<tr><td>${groupName}</td><td>${data.participant_count}</td><td>${createProfileBars(data.profile)}</td></tr>`;
+                }
+                groupHtml += '</tbody></table></div>';
+            }
+
+            let individualHtml = `<div class="card"><h3>תוצאות אישיות וקודים</h3>
+                <table>
+                    <thead><tr><th>שם וקבוצה</th><th>קוד גישה</th><th>פרופיל</th><th>סוג אישיות (ID)</th><th>ציון התאמה</th></tr></thead>
+                    <tbody>`;
             (details.individual_results || []).forEach(p => {
+                const score = p.archetype_score;
+                const scoreDisplay = score !== null ? parseFloat(score).toFixed(1) : 'N/A';
+                const scoreClass = getScoreColor(score);
+
                 individualHtml += `<tr>
                     <td><strong>${p.name}</strong><br><small>${p.group_name || ''}</small></td>
                     <td><strong>${p.access_code}</strong></td>
                     <td>${createProfileBars(p.profile)}</td>
-                    <td>${generateInsightHTML(p.profile, insights)}</td>
+                    <td style="text-align:center; font-weight: 700; font-size: 1.2em;">${p.archetype_id || 'N/A'}</td>
+                    <td style="text-align:center;"><span class="score-badge ${scoreClass}">${scoreDisplay}</span></td>
                 </tr>`;
             });
-            individualHtml += '</tbody></table>';
-
-            let groupHtml = '<h3>תוצאות קבוצתיות</h3><table><thead><tr><th>קבוצה</th><th>משתתפים</th><th>פרופיל ממוצע</th></tr></thead><tbody>';
-            for (const [groupName, data] of Object.entries(details.group_results || {})) {
-                groupHtml += `<tr><td>${groupName}</td><td>${data.participant_count}</td><td>${createProfileBars(data.profile)}</td></tr>`;
-            }
-            groupHtml += '</tbody></table>';
+            individualHtml += '</tbody></table></div>';
 
            gameDetails.innerHTML = `<h2>פרטי משחק: ${details.game_id}</h2>` + generalAverageHtml + groupHtml + individualHtml;
 
         } catch (error) {
             console.error('Error fetching game details:', error);
-            gameDetails.innerHTML = `<p>שגיאה בטעינת פרטי המשחק: ${gameId}</p>`;
+            gameDetails.innerHTML = `<div class="card"><p>שגיאה בטעינת פרטי המשחק: ${gameId}</p></div>`;
         }
     }
 
@@ -150,13 +258,21 @@ if (details.game_average_profile) {
             
             gamesList.innerHTML = '';
             games.forEach(game => {
+                const score = game.average_archetype_score;
+                const scoreDisplay = score !== null ? parseFloat(score).toFixed(1) : 'N/A';
+                const scoreClass = getScoreColor(score);
+
                 const li = document.createElement('li');
                 li.className = 'game-item';
                 li.dataset.gameId = game.game_id;
                 li.innerHTML = `
                     <strong>מזהה:</strong> ${game.game_id}<br>
-                    <small>מייל: ${game.client_email || 'לא צוין'}</small><br>
-                    <small>תאריך: ${new Date(game.processed_at).toLocaleString('he-IL')}</small>
+                    <small>${game.client_email || 'לא צוין'}</small><br>
+                    <small>${new Date(game.processed_at).toLocaleString('he-IL')}</small><br>
+                    <div style="margin-top: 8px;">
+                        <small>סטיית התאמה ממוצעת: </small>
+                        <span class="score-badge ${scoreClass}">${scoreDisplay}</span>
+                    </div>
                 `;
                 li.addEventListener('click', () => fetchGameDetails(game.game_id));
                 gamesList.appendChild(li);
@@ -167,9 +283,7 @@ if (details.game_average_profile) {
         }
     }
 
-    // טעינת רשימת המשחקים בפעם הראשונה
     fetchGameList();
 </script>
-    
 </body>
 </html>

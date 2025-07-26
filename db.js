@@ -55,6 +55,8 @@ CREATE TABLE IF NOT EXISTS games (
     user_name TEXT,
     group_name TEXT,
     profile_data TEXT NOT NULL, /* JSON */
+    archetype_id INTEGER, /* ⭐️ הוספת העמודה החדשה כאן */
+    archetype_score REAL, /* ⭐️ הוספת העמודה לציון הסטייה */
     PRIMARY KEY (id, game_id),
     FOREIGN KEY (game_id) REFERENCES games(game_id) ON DELETE CASCADE
   );

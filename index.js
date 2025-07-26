@@ -27,6 +27,7 @@ const { Server } = require("socket.io");
 const basicAuth = require('express-basic-auth');
 const celery = require('celery-node');
 const imageGenerator = require('./image-generator/generator.js'); // <--- הוסף את השורה הזו
+const archetypes = require('./archetypes.js'); // . הוספת ייבוא
 
 const celeryClient = celery.createClient(
   process.env.REDIS_URL, // משתמש במשתנה הסביבה לכתובת הרדיס
@@ -170,18 +171,48 @@ app.post('/api/games/bulk', (req, res) => {
     }
 });
 
-// [שינוי] עדכון נקודת הקצה להחזרת השם ומספר המשתתפים
+// [שדרוג] נקודת קצה להקצאת משחק לפי מספר משתתפים מדויק
 app.post('/api/games/assign', (req, res) => {
     try {
-        const { client_email } = req.body;
-        if (!client_email) return res.status(400).json({ message: 'client_email is required' });
+        // 1. קבלת פרמטרים חדשים מהבקשה
+        const { client_email, participant_count } = req.body;
+        if (!client_email || !participant_count) {
+            return res.status(400).json({ message: 'client_email and participant_count are required' });
+        }
+        
+        const pCount = parseInt(participant_count, 10);
+        if (isNaN(pCount)) {
+            return res.status(400).json({ message: 'participant_count must be a valid number' });
+        }
 
-        // [החלפה] הרחבת השאילתה לשליפת השם ומספר המשתתפים
-        const availableGame = db.prepare("SELECT game_id, name, participant_count FROM games WHERE status = 'available' ORDER BY created_at LIMIT 1").get();
+        // 2. חיפוש משחק פנוי עם מספר משתתפים תואם בדיוק
+        const availableGame = db.prepare(
+            "SELECT game_id, name, participant_count FROM games WHERE status = 'available' AND participant_count = ? ORDER BY created_at LIMIT 1"
+        ).get(pCount);
 
         if (!availableGame) {
-            return res.status(404).json({ message: 'No available game IDs in the pool.' });
+            // 3. הודעת שגיאה משופרת אם לא נמצא משחק מתאים
+            return res.status(404).json({ message: `No available game IDs in the pool for ${pCount} participants.` });
         }
+
+        const { game_id, name } = availableGame;
+        db.prepare("UPDATE games SET client_email = ?, status = 'assigned', assigned_at = CURRENT_TIMESTAMP WHERE game_id = ?")
+          .run(client_email, game_id);
+
+        console.log(`✅ Game ID ${game_id} (for ${pCount} users) assigned to ${client_email}`);
+
+        // 4. החזרת כל הנתונים הרלוונטיים בתגובה, כפי שהיה קודם
+        res.json({ 
+            status: 'success', 
+            assigned_game_id: game_id,
+            name: name,
+            participant_count: availableGame.participant_count
+        });
+    } catch (e) {
+        console.error('❌ Error assigning game:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+});
 
         const { game_id, name, participant_count } = availableGame; // [הוספה] חילוץ המידע החדש
         db.prepare("UPDATE games SET client_email = ?, status = 'assigned', assigned_at = CURRENT_TIMESTAMP WHERE game_id = ?")
@@ -213,7 +244,37 @@ app.delete('/api/games/:gameId', (req, res) => {
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
+// --- API לדשבורד סיכום מצב המשחקים ---
+app.get('/api/games/summary', (req, res) => {
+    try {
+        const rows = db.prepare(`
+            SELECT 
+                participant_count, 
+                status, 
+                COUNT(*) as count 
+            FROM games 
+            WHERE participant_count IS NOT NULL
+            GROUP BY participant_count, status
+            ORDER BY participant_count
+        `).all();
 
+        // עיבוד התוצאות למבנה נוח לשימוש בממשק
+        const summary = rows.reduce((acc, row) => {
+            const { participant_count, status, count } = row;
+            if (!acc[participant_count]) {
+                acc[participant_count] = { available: 0, assigned: 0, completed: 0, total: 0 };
+            }
+            acc[participant_count][status] = count;
+            acc[participant_count].total += count;
+            return acc;
+        }, {});
+
+        res.json(summary);
+    } catch (e) {
+        console.error('❌ Error fetching games summary:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+});
 // --- ניהול תובנות ---
 app.get('/api/insights', (req, res) => {
     try {
@@ -236,26 +297,69 @@ app.get('/api/results', (req, res) => {
         res.json(summaries);
     } catch (e) { console.error('❌ Error listing results:', e); res.status(500).json({ message: 'Internal Server Error' }); }
 });
-
 app.get('/api/results/:gameId', (req, res) => {
     try {
         const { gameId } = req.params;
         const summary = db.prepare('SELECT * FROM game_summaries WHERE game_id = ?').get(gameId);
         if (!summary) return res.status(404).json({ message: 'Result not found' });
+        
+        // ⭐️ שינוי: מושכים את כל הנתונים, כולל העמודות החדשות
         const individuals = db.prepare('SELECT * FROM individual_results WHERE game_id = ?').all(gameId);
         const groups = db.prepare('SELECT * FROM group_results WHERE game_id = ?').all(gameId);
 
         const fullResult = {
-            game_id: summary.game_id, client_email: summary.client_email, processed_at: summary.processed_at,
+            game_id: summary.game_id,
+            client_email: summary.client_email,
+            processed_at: summary.processed_at,
             game_average_profile: JSON.parse(summary.game_average_profile),
-            individual_results: individuals.map(p => ({ id: p.id, name: p.user_name, group_name: p.group_name, access_code: p.access_code, profile: JSON.parse(p.profile_data) })),
-            group_results: groups.reduce((acc, g) => { acc[g.group_name] = { participant_count: g.participant_count, profile: JSON.parse(g.profile_data) }; return acc; }, {})
+            // ⭐️ שינוי: מוסיפים את השדות החדשים לאובייקט שנשלח
+            individual_results: individuals.map(p => ({
+                id: p.id,
+                name: p.user_name,
+                group_name: p.group_name,
+                access_code: p.access_code,
+                profile: JSON.parse(p.profile_data),
+                archetype_id: p.archetype_id,
+                archetype_score: p.archetype_score
+            })),
+            group_results: groups.reduce((acc, g) => {
+                acc[g.group_name] = {
+                    participant_count: g.participant_count,
+                    profile: JSON.parse(g.profile_data)
+                };
+                return acc;
+            }, {})
         };
         res.json(fullResult);
-    } catch (e) { console.error('❌ Error reading result:', e); res.status(500).json({ message: 'Internal Server Error' }); }
+    } catch (e) {
+        console.error('❌ Error reading result:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
 });
 
 // --- פונקציות עזר לשליפת תוצאה ---
+// ⭐️ 2. הוספת פונקציית העזר החדשה
+function findClosestArchetype(userProfile) {
+    if (!userProfile) return null;
+
+    let bestMatch = null;
+    let minDifference = Infinity;
+
+    for (const archetype of archetypes) {
+        const currentDifference = 
+            Math.abs(userProfile.fire - archetype.profile.fire) +
+            Math.abs(userProfile.water - archetype.profile.water) +
+            Math.abs(userProfile.air - archetype.profile.air) +
+            Math.abs(userProfile.earth - archetype.profile.earth);
+
+        if (currentDifference < minDifference) {
+            minDifference = currentDifference;
+            bestMatch = archetype;
+        }
+    }
+    // ⭐️ שינוי: החזרת אובייקט עם הסוג וגם עם הציון
+    return { archetype: bestMatch, score: minDifference }; 
+}
 function processInsightsForProfile(profile, insights) {
     if (!insights || !profile) return null;
     const getDominantElement = (p) => Object.keys(p).reduce((a, b) => p[a] > p[b] ? a : b);
@@ -300,6 +404,112 @@ app.get('/api/my-result/by-phone/:phone', (req, res) => {
         const processedInsights = processInsightsForProfile(userProfile.profile, insights);
         res.json({ ...userProfile, insights: processedInsights });
     } catch (e) { console.error('❌ Error searching by phone:', e); res.status(500).json({ message: 'Internal Server Error' }); }
+});
+
+// ===================================================================
+//          ⭐️ הוספת 2 נקודות קצה חדשות לבקשתך ⭐️
+// ===================================================================
+
+// --- 1. נקודת קצה שמחזירה טקסט פתיחה לפי מספר טלפון ---
+app.post('/api/get-intro-text', (req, res) => {
+    try {
+        const phone = req.body?.form_data?.ApiPhone;
+        if (!phone) {
+            return res.status(400).send('A "ApiPhone" field inside "form_data" is required.');
+        }
+
+        // שאילתה למציאת התוצאה האחרונה של המשתמש
+        const query = `
+            SELECT T1.user_name, T1.profile_data 
+            FROM individual_results T1
+            JOIN games T2 ON T1.game_id = T2.game_id
+            WHERE T1.id = ? 
+            ORDER BY T2.completed_at DESC 
+            LIMIT 1
+        `;
+        const userResult = db.prepare(query).get(phone);
+
+        if (!userResult) {
+            return res.status(404).send('Result not found for this phone number.');
+        }
+
+        const profile = JSON.parse(userResult.profile_data);
+        const namePart = userResult.user_name ? `${userResult.user_name} ` : '';
+
+        const responseText = 
+`שלום ${namePart}על פי הנתונים שיצאו מהמסע שלך, פילוח היסודות שלך הוא כך:
+אש: ${profile.fire.toFixed(1)}%
+מים: ${profile.water.toFixed(1)}%
+רוח: ${profile.air.toFixed(1)}%
+עפר: ${profile.earth.toFixed(1)}%
+
+מיד תועבר לשמוע בפירוט על התכונות הייחודיות שלך.`;
+
+        // ⭐️ שינוי: שליחת טקסט נקי במקום JSON
+        res.set('Content-Type', 'text/plain; charset=utf-8').send(responseText);
+
+    } catch (e) {
+        console.error('❌ Error in /api/get-intro-text:', e);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+// --- 2. נקודות קצה שמחזירות את מספר סוג האישיות (Archetype ID) ---
+
+// לפי מספר טלפון
+app.post('/api/get-archetype/by-phone', (req, res) => {
+    try {
+        const phone = req.body?.form_data?.ApiPhone;
+        if (!phone) {
+            return res.status(400).send('A "ApiPhone" field inside "form_data" is required.');
+        }
+
+        const query = `
+            SELECT T1.archetype_id 
+            FROM individual_results T1
+            JOIN games T2 ON T1.game_id = T2.game_id
+            WHERE T1.id = ? 
+            ORDER BY T2.completed_at DESC 
+            LIMIT 1
+        `;
+        const result = db.prepare(query).get(phone);
+
+        if (!result || result.archetype_id === null) {
+            return res.status(404).send('Archetype ID not found for this phone number.');
+        }
+        
+        // החזרת המספר בלבד כטקסט פשוט
+        res.set('Content-Type', 'text/plain').send(String(result.archetype_id));
+
+    } catch (e) {
+        console.error('❌ Error in /api/get-archetype/by-phone:', e);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+// לפי קוד אישי
+app.post('/api/get-archetype/by-code', (req, res) => {
+    try {
+        // ⭐️ שיניתי את שם השדה ל-ApiCode כדי שיהיה ברור יותר
+        const accessCode = req.body?.form_data?.ApiCode;
+        if (!accessCode) {
+            return res.status(400).send('An "ApiCode" field inside "form_data" is required.');
+        }
+
+        const query = 'SELECT archetype_id FROM individual_results WHERE access_code = ?';
+        const result = db.prepare(query).get(accessCode);
+
+        if (!result || result.archetype_id === null) {
+            return res.status(404).send('Archetype ID not found for this access code.');
+        }
+
+        // החזרת המספר בלבד כטקסט פשוט
+        res.set('Content-Type', 'text/plain').send(String(result.archetype_id));
+
+    } catch (e) {
+        console.error('❌ Error in /api/get-archetype/by-code:', e);
+        res.status(500).send('Internal Server Error');
+    }
 });
 
 // --- [שדרוג] עיבוד תוצאות עם הפורמט החדש ---
@@ -354,17 +564,21 @@ app.post('/api/submit-results', async (req, res) => {
             const profile = Object.keys(elementCounts).reduce((prof, key) => { prof[key] = validAnswersCount > 0 ? (elementCounts[key] / validAnswersCount) * 100 : 0; return prof; }, {});
             Object.keys(profile).forEach(elem => { game_grand_totals[elem] += profile[elem]; });
             const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
-            
-            individual_results.push({ id: userId, name, group_name, profile, access_code });
-            
+                // ============  ⭐️ 3. הוספת הקוד החדש כאן  ============
+    const closestArchetype = findClosestArchetype(profile);
+    const archetype_id = closestArchetype ? closestArchetype.type_id : null;
+    // =======================================================
+    
+    // הוסף את ה-archetype_id לאובייקט שנשמר
+    individual_results.push({ id: userId, name, group_name, profile, access_code, archetype_id }); // ⭐️ הוספת השדה החדש
+    
             if (group_name) {
                 if (!group_results_obj[group_name]) { group_results_obj[group_name] = { counts: { fire: 0, water: 0, air: 0, earth: 0 }, participant_count: 0 }; }
                 Object.keys(profile).forEach(elem => group_results_obj[group_name].counts[elem] += profile[elem]);
                 group_results_obj[group_name].participant_count++;
             }
         }
-        
-        // --- המשך הלוגיקה הקיימת ---
+     // --- המשך הלוגיקה הקיימת ---
         const group_results = {};
         for (const [groupName, data] of Object.entries(group_results_obj)) {
             group_results[groupName] = { profile: Object.keys(data.counts).reduce((prof, key) => { prof[key] = data.counts[key] / data.participant_count; return prof; }, {}), participant_count: data.participant_count };
@@ -372,14 +586,23 @@ app.post('/api/submit-results', async (req, res) => {
         const totalParticipants = individual_results.length;
         const game_average_profile = Object.keys(game_grand_totals).reduce((prof, key) => { prof[key] = totalParticipants > 0 ? game_grand_totals[key] / totalParticipants : 0; return prof; }, {});
         
+        // ⭐️ שינוי: פקודת ה-INSERT עודכנה עם העמודות החדשות
         const insertSummary = db.prepare('INSERT OR REPLACE INTO game_summaries (game_id, client_email, processed_at, game_average_profile) VALUES (?, ?, ?, ?)');
-        const insertIndividual = db.prepare('INSERT OR REPLACE INTO individual_results (id, game_id, access_code, user_name, group_name, profile_data) VALUES (?, ?, ?, ?, ?, ?)');
+        const insertIndividual = db.prepare('INSERT OR REPLACE INTO individual_results (id, game_id, access_code, user_name, group_name, profile_data, archetype_id, archetype_score) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
         const insertGroup = db.prepare('INSERT OR REPLACE INTO group_results (game_id, group_name, participant_count, profile_data) VALUES (?, ?, ?, ?)');
         
         const saveAllResults = db.transaction(() => {
             insertSummary.run(game_id, client_email, new Date().toISOString(), JSON.stringify(game_average_profile));
-            for (const res of individual_results) { insertIndividual.run(res.id, game_id, res.access_code, res.name, res.group_name, JSON.stringify(res.profile)); }
-            for (const groupName in group_results) { const groupData = group_results[groupName]; insertGroup.run(game_id, groupName, groupData.participant_count, JSON.stringify(groupData.profile)); }
+            
+            // ⭐️ שינוי: פקודת ה-run עודכנה עם הנתונים החדשים
+            for (const res of individual_results) { 
+                insertIndividual.run(res.id, game_id, res.access_code, res.name, res.group_name, JSON.stringify(res.profile), res.archetype_id, res.archetype_score); 
+            }
+            
+            for (const groupName in group_results) { 
+                const groupData = group_results[groupName]; 
+                insertGroup.run(game_id, groupName, groupData.participant_count, JSON.stringify(groupData.profile)); 
+            }
         });
         saveAllResults();
         console.log(`✅ Game results for ${game_id} saved to DB (Normalized).`);
@@ -401,7 +624,6 @@ console.log(`✅ Game ${game_id} marked as completed.`);
                 console.log(`📢 Webhook סיכום נשלח בהצלחה.`);
             } catch (webhookError) { console.error(`❌ Error sending summary GET webhook: ${webhookError.message}`); }
         }
-// <<< יש להוסיף את כל הקטע הזה במקום הקוד שנמחק >>>
 console.log(`📢 מתחיל שליחת ${individual_results.length} משימות ל-Celery...`);
 for (const participantResult of individual_results) {
     try {
