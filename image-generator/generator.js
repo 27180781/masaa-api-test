@@ -2,6 +2,7 @@ const sharp = require('sharp');
 const { COLORS, FONTS, LAYOUT } = require('./config.js');
 
 function createTextSvg(text, font, color, width, height) {
+    // פורמט הפונט חוזר להיות קלאסי
     const [fontFamily, weight, size] = font.split(' ');
     return Buffer.from(`
     <svg width="${width}" height="${height}">
@@ -15,7 +16,6 @@ function createTextSvg(text, font, color, width, height) {
 async function createGameSummaryImage(gameId, profile) {
     const { width, height, backgroundImagePath, barWidth, barMargin, chartHeight } = LAYOUT.summaryChart;
     
-    // הכנת שכבות הטקסט כ-SVG
     const titleSvg = createTextSvg(
         `סיכום תוצאות למשחק: ${gameId}`,
         FONTS.title,
@@ -31,14 +31,15 @@ async function createGameSummaryImage(gameId, profile) {
     const elements = Object.keys(profile);
     const startX = (width - (elements.length * (barWidth + barMargin) - barMargin)) / 2;
 
-    elements.forEach((element, index) => {
+    // החלפת forEach בלולאת for...of שתומכת ב-await
+    let index = 0;
+    for (const element of elements) {
         const barHeight = (profile[element] / 100) * chartHeight;
         const x = startX + index * (barWidth + barMargin);
         const y = height - 150 - barHeight;
         const hebrewElement = { fire: 'אש', water: 'מים', air: 'אוויר', earth: 'אדמה' }[element] || element;
 
-        // יצירת עמודה צבעונית באמצעות sharp
-        const barBuffer = sharp({
+        const barBuffer = await sharp({ // 'await' עובד כהלכה בתוך הלולאה הזו
             create: {
                 width: barWidth,
                 height: Math.round(barHeight),
@@ -47,29 +48,27 @@ async function createGameSummaryImage(gameId, profile) {
             }
         }).png().toBuffer();
 
-        // הוספת העמודה למערך השכבות
         compositeLayers.push({
-            input: await barBuffer,
+            input: barBuffer,
             top: Math.round(y),
             left: Math.round(x)
         });
 
-        // שכבת אחוזים
         compositeLayers.push({
             input: createTextSvg(`${profile[element].toFixed(1)}%`, FONTS.percentage, COLORS.text, barWidth, 40),
-            top: Math.round(y - 50), // ⬅️ עיגול המספר
-            left: Math.round(x)      // ⬅️ עיגול המספר
+            top: Math.round(y - 50),
+            left: Math.round(x)
         });
 
-        // שכבת שם היסוד
         compositeLayers.push({
             input: createTextSvg(hebrewElement, FONTS.label, COLORS.text, barWidth, 50),
-            top: Math.round(height - 120), // ⬅️ עיגול המספר
-            left: Math.round(x)           // ⬅️ עיגול המספר
+            top: Math.round(height - 120),
+            left: Math.round(x)
         });
-    });
 
-    // הרכבת התמונה הסופית
+        index++; // קידום האינדקס באופן ידני
+    }
+
     const finalImageBuffer = await sharp(backgroundImagePath)
         .composite(compositeLayers)
         .toBuffer();
