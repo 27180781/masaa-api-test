@@ -15,7 +15,9 @@ const basicAuth = require('express-basic-auth');
 const celery = require('celery-node');
 const imageGenerator = require('./image-generator/generator.js');
 const archetypes = require('./archetypes.js');
-console.log(`[DEBUG] archetypes.js loaded with ${archetypes.length} entries.`);
+if (process.env.LOG_LEVEL === 'debug') {
+    console.log(`[DEBUG] archetypes.js loaded with ${archetypes.length} entries.`);
+}
 
 // --- Register Fonts ---
 const regularFontPath = './assets/FbKanuba-Regular.ttf';
@@ -233,37 +235,49 @@ app.get('/api/results/:gameId', (req, res) => {
 });
 
 
-// --- Helper Functions ---
-function findClosestArchetype(userProfile) {
-    console.log('[DEBUG] findClosestArchetype function started.');
+// --- Helper Functions ---function findClosestArchetype(userProfile) {
+    if (process.env.LOG_LEVEL === 'debug') {
+        console.log('[DEBUG] findClosestArchetype function started.');
+    }
+
     if (!userProfile) {
-        console.log('[DEBUG] Error: userProfile is null or undefined.');
+        if (process.env.LOG_LEVEL === 'debug') console.log('[DEBUG] Error: userProfile is null or undefined.');
         return null;
     }
+
     if (!archetypes || archetypes.length === 0) {
-        console.log('[DEBUG] Error: Archetypes array is empty.');
+        if (process.env.LOG_LEVEL === 'debug') console.log('[DEBUG] Error: Archetypes array is empty.');
         return null;
     }
+
     let bestMatch = null;
     let minDifference = Infinity;
-    if (archetypes.length > 0) {
+
+    if (process.env.LOG_LEVEL === 'debug' && archetypes.length > 0) {
         console.log(`[DEBUG] First archetype for comparison: ${JSON.stringify(archetypes[0])}`);
     }
+
     for (const archetype of archetypes) {
         if (!archetype.profile || typeof archetype.profile.fire === 'undefined') {
             continue;
         }
-        const currentDifference =
+
+        const currentDifference = 
             Math.abs((userProfile.fire || 0) - archetype.profile.fire) +
             Math.abs((userProfile.water || 0) - archetype.profile.water) +
             Math.abs((userProfile.air || 0) - archetype.profile.air) +
             Math.abs((userProfile.earth || 0) - archetype.profile.earth);
+
         if (currentDifference < minDifference) {
             minDifference = currentDifference;
             bestMatch = archetype;
         }
     }
-    console.log(`[DEBUG] Calculation finished. Best match ID: ${bestMatch ? bestMatch.type_id : 'None'}. Score: ${minDifference}`);
+
+    if (process.env.LOG_LEVEL === 'debug') {
+        console.log(`[DEBUG] Calculation finished. Best match ID: ${bestMatch ? bestMatch.type_id : 'None'}. Score: ${minDifference}`);
+    }
+    
     return { archetype: bestMatch, score: minDifference };
 }
 function processInsightsForProfile(profile, insights) {
@@ -392,7 +406,9 @@ app.post('/api/submit-results', async (req, res) => {
             Object.keys(profile).forEach(elem => { game_grand_totals[elem] += profile[elem]; });
             const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
             
-            console.log(`[DEBUG] Profile sent to calculation: ${JSON.stringify(profile)}`);
+            if (process.env.LOG_LEVEL === 'debug') {
+    console.log(`[DEBUG] Profile sent to calculation: ${JSON.stringify(profile)}`);
+}
             const matchResult = findClosestArchetype(profile);
             const archetype_id = matchResult && matchResult.archetype ? matchResult.archetype.type_id : null;
             const archetype_score = matchResult && matchResult.score !== Infinity ? matchResult.score : null;
