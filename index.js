@@ -28,7 +28,8 @@ const basicAuth = require('express-basic-auth');
 const celery = require('celery-node');
 const imageGenerator = require('./image-generator/generator.js'); // <--- הוסף את השורה הזו
 const archetypes = require('./archetypes.js'); // . הוספת ייבוא
-
+// ⭐️ הוסף את השורה הבאה
+console.log(`[DEBUG] archetypes.js loaded with ${archetypes.length} entries.`);
 const celeryClient = celery.createClient(
   process.env.REDIS_URL, // משתמש במשתנה הסביבה לכתובת הרדיס
   process.env.REDIS_URL  // משמש גם עבור ה-backend של Celery
@@ -320,27 +321,48 @@ app.get('/api/results/:gameId', (req, res) => {
 });
 
 // --- פונקציות עזר לשליפת תוצאה ---
-// ⭐️ 2. הוספת פונקציית העזר החדשה
 function findClosestArchetype(userProfile) {
-    if (!userProfile) return null;
+    // ⭐️ הוספנו הדפסות לתוך הפונקציה
+    console.log('[DEBUG] findClosestArchetype function started.');
+
+    if (!userProfile) {
+        console.log('[DEBUG] Error: userProfile is null or undefined.');
+        return null;
+    }
+
+    if (!archetypes || archetypes.length === 0) {
+        console.log('[DEBUG] Error: Archetypes array is empty.');
+        return null;
+    }
 
     let bestMatch = null;
     let minDifference = Infinity;
 
+    // הדפסת הארכיטיפ הראשון בלבד, כדי לא להציף את הלוג
+    if (archetypes.length > 0) {
+        console.log(`[DEBUG] First archetype for comparison: ${JSON.stringify(archetypes[0])}`);
+    }
+
     for (const archetype of archetypes) {
+        // ודא שהנתונים קיימים לפני החישוב
+        if (!archetype.profile || typeof archetype.profile.fire === 'undefined') {
+            continue; // דלג על ארכיטיפ לא תקין
+        }
+
         const currentDifference = 
-            Math.abs(userProfile.fire - archetype.profile.fire) +
-            Math.abs(userProfile.water - archetype.profile.water) +
-            Math.abs(userProfile.air - archetype.profile.air) +
-            Math.abs(userProfile.earth - archetype.profile.earth);
+            Math.abs((userProfile.fire || 0) - archetype.profile.fire) +
+            Math.abs((userProfile.water || 0) - archetype.profile.water) +
+            Math.abs((userProfile.air || 0) - archetype.profile.air) +
+            Math.abs((userProfile.earth || 0) - archetype.profile.earth);
 
         if (currentDifference < minDifference) {
             minDifference = currentDifference;
             bestMatch = archetype;
         }
     }
-    // ⭐️ שינוי: החזרת אובייקט עם הסוג וגם עם הציון
-    return { archetype: bestMatch, score: minDifference }; 
+
+    console.log(`[DEBUG] Calculation finished. Best match ID: ${bestMatch ? bestMatch.type_id : 'None'}. Score: ${minDifference}`);
+    return { archetype: bestMatch, score: minDifference };
 }
 function processInsightsForProfile(profile, insights) {
     if (!insights || !profile) return null;
@@ -518,12 +540,10 @@ app.post('/api/submit-results', async (req, res) => {
         const game_grand_totals = { fire: 0, water: 0, air: 0, earth: 0 };
 
         for (const [userId, participantData] of Object.entries(participants)) {
-            // [תיקון] חילוץ הנתונים מהמבנה החדש והמורכב
-            const name = participantData.details ? participantData.details.name : userId;
+const name = participantData.details ? participantData.details.name : userId;
             const group_name = participantData.details && participantData.details.category_1 ? `קבוצה ${participantData.details.category_1.groupId}` : null;
             
             const answers = {};
-            // [תיקון] לולאה שחולטת רק את התשובות מהאובייקט
             for (const key in participantData) {
                 if (key.startsWith('queId_') && !key.includes('_success')) {
                     const questionNum = key.replace('queId_', '');
@@ -546,21 +566,27 @@ app.post('/api/submit-results', async (req, res) => {
             const profile = Object.keys(elementCounts).reduce((prof, key) => { prof[key] = validAnswersCount > 0 ? (elementCounts[key] / validAnswersCount) * 100 : 0; return prof; }, {});
             Object.keys(profile).forEach(elem => { game_grand_totals[elem] += profile[elem]; });
             const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
-                // ============  ⭐️ 3. הוספת הקוד החדש כאן  ============
-    const closestArchetype = findClosestArchetype(profile);
-    const archetype_id = closestArchetype ? closestArchetype.type_id : null;
-    // =======================================================
-    
-    // הוסף את ה-archetype_id לאובייקט שנשמר
-    individual_results.push({ id: userId, name, group_name, profile, access_code, archetype_id }); // ⭐️ הוספת השדה החדש
-    
+            
+            // ============  ⭐️ הוספת קוד הדיבאג והתיקון הלוגי כאן  ============
+            
+            // שלב 2: הדפסת הפרופיל שנשלח לחישוב
+            console.log(`[DEBUG] Profile sent to calculation: ${JSON.stringify(profile)}`);
+
+            // לוגיקה מתוקנת לקריאה לפונקציה ושמירת התוצאות
+            const matchResult = findClosestArchetype(profile);
+            const archetype_id = matchResult && matchResult.archetype ? matchResult.archetype.type_id : null;
+            const archetype_score = matchResult && matchResult.score !== Infinity ? matchResult.score : null;
+            
+            // שמירת כל הנתונים במערך התוצאות
+            individual_results.push({ id: userId, name, group_name, profile, access_code, archetype_id, archetype_score });
+            
+            // =================================================================
+
             if (group_name) {
                 if (!group_results_obj[group_name]) { group_results_obj[group_name] = { counts: { fire: 0, water: 0, air: 0, earth: 0 }, participant_count: 0 }; }
                 Object.keys(profile).forEach(elem => group_results_obj[group_name].counts[elem] += profile[elem]);
                 group_results_obj[group_name].participant_count++;
             }
-        }
-     // --- המשך הלוגיקה הקיימת ---
         const group_results = {};
         for (const [groupName, data] of Object.entries(group_results_obj)) {
             group_results[groupName] = { profile: Object.keys(data.counts).reduce((prof, key) => { prof[key] = data.counts[key] / data.participant_count; return prof; }, {}), participant_count: data.participant_count };
