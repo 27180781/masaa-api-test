@@ -44,7 +44,7 @@ const MAX_LOG_HISTORY = 50;
 // ===================================================================
 app.use(cors());
 app.use(express.json());
-
+app.use(express.urlencoded({ extended: true }));
 // =================================================================
 //                      PUBLIC & ADMIN ROUTES
 // ===================================================================
@@ -328,34 +328,47 @@ app.get('/api/my-result/by-phone/:phone', (req, res) => {
 // --- API for IVR System ---
 app.post('/api/get-intro-text', (req, res) => {
     try {
-        const phone = req.body?.form_data?.ApiPhone;
-        if (!phone) return res.status(400).send('A "ApiPhone" field is required.');
+        // ⭐️ שינוי: קריאה ישירה מ-req.body
+        const phone = req.body.ApiPhone;
+        if (!phone) return res.status(400).send('An "ApiPhone" field is required.');
+        
         const query = `SELECT T1.user_name, T1.profile_data FROM individual_results T1 JOIN games T2 ON T1.game_id = T2.game_id WHERE T1.id = ? ORDER BY T2.completed_at DESC LIMIT 1`;
         const userResult = db.prepare(query).get(phone);
+        
         if (!userResult) return res.status(404).send('Result not found.');
+        
         const profile = JSON.parse(userResult.profile_data);
         const namePart = userResult.user_name ? `${userResult.user_name} ` : '';
         const responseText = `שלום ${namePart}על פי הנתונים שיצאו מהמסע שלך, פילוח היסודות שלך הוא כך:\nאש: ${profile.fire.toFixed(1)}%\nמים: ${profile.water.toFixed(1)}%\nרוח: ${profile.air.toFixed(1)}%\nעפר: ${profile.earth.toFixed(1)}%\n\nמיד תועבר לשמוע בפירוט על התכונות הייחודיות שלך.`;
+        
         res.set('Content-Type', 'text/plain; charset=utf-8').send(responseText);
     } catch (e) { console.error('❌ Error in /api/get-intro-text:', e); res.status(500).send('Internal Server Error'); }
 });
 app.post('/api/get-archetype/by-phone', (req, res) => {
     try {
-        const phone = req.body?.form_data?.ApiPhone;
-        if (!phone) return res.status(400).send('A "ApiPhone" field is required.');
+        // ⭐️ שינוי: קריאה ישירה מ-req.body
+        const phone = req.body.ApiPhone;
+        if (!phone) return res.status(400).send('An "ApiPhone" field is required.');
+
         const query = `SELECT T1.archetype_id FROM individual_results T1 JOIN games T2 ON T1.game_id = T2.game_id WHERE T1.id = ? ORDER BY T2.completed_at DESC LIMIT 1`;
         const result = db.prepare(query).get(phone);
+        
         if (!result || result.archetype_id === null) return res.status(404).send('Archetype ID not found.');
+        
         res.set('Content-Type', 'text/plain').send(String(result.archetype_id));
     } catch (e) { console.error('❌ Error in /api/get-archetype/by-phone:', e); res.status(500).send('Internal Server Error'); }
 });
 app.post('/api/get-archetype/by-code', (req, res) => {
     try {
-        const accessCode = req.body?.form_data?.ApiCode;
+        // ⭐️ שינוי: קריאה ישירה מ-req.body
+        const accessCode = req.body.ApiCode;
         if (!accessCode) return res.status(400).send('An "ApiCode" field is required.');
+        
         const query = 'SELECT archetype_id FROM individual_results WHERE access_code = ?';
         const result = db.prepare(query).get(accessCode);
+        
         if (!result || result.archetype_id === null) return res.status(404).send('Archetype ID not found.');
+        
         res.set('Content-Type', 'text/plain').send(String(result.archetype_id));
     } catch (e) { console.error('❌ Error in /api/get-archetype/by-code:', e); res.status(500).send('Internal Server Error'); }
 });
