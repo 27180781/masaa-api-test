@@ -278,9 +278,9 @@ function findClosestArchetype(userProfile) {
     if (process.env.LOG_LEVEL === 'debug') {
         console.log(`[DEBUG] Calculation finished. Best match ID: ${bestMatch ? bestMatch.type_id : 'None'}. Score: ${minDifference}`);
     }
-}    
+  
     return { archetype: bestMatch, score: minDifference };
-
+}
 function processInsightsForProfile(profile, insights) {
     if (!insights || !profile) return null;
     const getDominantElement = (p) => Object.keys(p).reduce((a, b) => p[a] > p[b] ? a : b);
