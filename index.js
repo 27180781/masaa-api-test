@@ -351,7 +351,7 @@ app.post('/api/get-intro-text', (req, res) => {
     `t-יסוד המים ${profile.water.toFixed(0)} אחוזים`,
     `t-יסוד הרוח ${profile.air.toFixed(0)} אחוזים`,
     `t-יסוד העפר ${profile.earth.toFixed(0)} אחוזים`,
-    `t-סוף ההודעה` //⭐️ שינינו את ההודעה האחרונה למשהו פשוט
+    `t-מיד תועבר לשמוע בפירוט על התכונות הייחודיות שלך` // ⭐️ ההודעה המקורית והרצויה
 ];
         
         // הרכבת מחרוזת הפקודה הסופית
@@ -370,12 +370,29 @@ const finalResponseString = `id_list_message=${messages.join('.')}&go_to_folder=
 app.post('/api/get-archetype/by-phone', (req, res) => {
     try {
         const phone = req.body.ApiPhone;
-        if (!phone) return res.status(400).send('An "ApiPhone" field is required.');
+        if (!phone) {
+            return res.set('Content-Type', 'text/plain; charset=utf-8').send('go_to_folder=hangup');
+        }
+
         const query = `SELECT T1.archetype_id FROM individual_results T1 JOIN games T2 ON T1.game_id = T2.game_id WHERE T1.id = ? ORDER BY T2.completed_at DESC LIMIT 1`;
         const result = db.prepare(query).get(phone);
-        if (!result || result.archetype_id === null) return res.status(404).send('Archetype ID not found.');
-        res.set('Content-Type', 'text/plain').send(String(result.archetype_id));
-    } catch (e) { console.error('❌ Error in /api/get-archetype/by-phone:', e); res.status(500).send('Internal Server Error'); }
+
+        if (!result || result.archetype_id === null) {
+            // אם אין התאמה, השמע הודעת שגיאה ונתק
+            const errorString = 'id_list_message=t-לא נמצאה התאמה עבור מספר הטלפון שלך&go_to_folder=hangup';
+            return res.set('Content-Type', 'text/plain; charset=utf-8').send(errorString);
+        }
+
+        // הרכבת הפקודה להשמעת הקובץ + העברה לשלוחה 1
+        const responseString = `id_list_message=f-${result.archetype_id}&go_to_folder=/1`;
+
+        res.set('Content-Type', 'text/plain; charset=utf-8').send(responseString);
+
+    } catch (e) {
+        console.error('❌ Error in /api/get-archetype/by-phone:', e);
+        const errorString = 'id_list_message=t-אירעה שגיאה בשרת&go_to_folder=hangup';
+        res.set('Content-Type', 'text/plain; charset=utf-8').send(errorString);
+    }
 });
 app.post('/api/get-archetype/by-code', (req, res) => {
     try {
