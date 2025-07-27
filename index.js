@@ -15,6 +15,8 @@ const basicAuth = require('express-basic-auth');
 const celery = require('celery-node');
 const imageGenerator = require('./image-generator/generator.js');
 const archetypes = require('./archetypes.js');
+const { YemotRouter } = require('yemot-router2');
+const router = YemotRouter();
 if (process.env.LOG_LEVEL === 'debug') {
     console.log(`[DEBUG] archetypes.js loaded with ${archetypes.length} entries.`);
 }
@@ -328,35 +330,45 @@ app.get('/api/my-result/by-phone/:phone', (req, res) => {
 // --- API for IVR System ---
 app.post('/api/get-intro-text', (req, res) => {
     try {
-        // ⭐️ שינוי: קריאה ישירה מ-req.body
-        const phone = req.body.ApiPhone;
-        if (!phone) return res.status(400).send('An "ApiPhone" field is required.');
-        
+router.post('/api/get-intro-text', async (call) => {
+    try {
+        // הספרייה נותנת לך את הטלפון ישירות מהאובייקט 'call'
+        const phone = call.phone; 
+        if (!phone) {
+            // הדרך הנכונה להשמיע הודעת שגיאה ולנתק
+            return call.id_list_message([{ type: 'text', data: 'מספר טלפון לא התקבל' }]);
+        }
+
         const query = `SELECT T1.user_name, T1.profile_data FROM individual_results T1 JOIN games T2 ON T1.game_id = T2.game_id WHERE T1.id = ? ORDER BY T2.completed_at DESC LIMIT 1`;
         const userResult = db.prepare(query).get(phone);
-        
-        if (!userResult) return res.status(404).send('Result not found.');
-        
-        const profile = JSON.parse(userResult.profile_data);
-        const namePart = userResult.user_name ? `${userResult.user_name} ` : '';
-        const responseText = `שלום ${namePart}על פי הנתונים שיצאו מהמסע שלך, פילוח היסודות שלך הוא כך:\nאש: ${profile.fire.toFixed(1)}%\nמים: ${profile.water.toFixed(1)}%\nרוח: ${profile.air.toFixed(1)}%\nעפר: ${profile.earth.toFixed(1)}%\n\nמיד תועבר לשמוע בפירוט על התכונות הייחודיות שלך.`;
-        
-        res.set('Content-Type', 'text/plain; charset=utf-8').send(responseText);
-    } catch (e) { console.error('❌ Error in /api/get-intro-text:', e); res.status(500).send('Internal Server Error'); }
-});
-app.post('/api/get-archetype/by-phone', (req, res) => {
-    try {
-        // ⭐️ שינוי: קריאה ישירה מ-req.body
-        const phone = req.body.ApiPhone;
-        if (!phone) return res.status(400).send('An "ApiPhone" field is required.');
 
-        const query = `SELECT T1.archetype_id FROM individual_results T1 JOIN games T2 ON T1.game_id = T2.game_id WHERE T1.id = ? ORDER BY T2.completed_at DESC LIMIT 1`;
-        const result = db.prepare(query).get(phone);
-        
-        if (!result || result.archetype_id === null) return res.status(404).send('Archetype ID not found.');
-        
-        res.set('Content-Type', 'text/plain').send(String(result.archetype_id));
-    } catch (e) { console.error('❌ Error in /api/get-archetype/by-phone:', e); res.status(500).send('Internal Server Error'); }
+        if (!userResult) {
+            return call.id_list_message([{ type: 'text', data: 'הנתונים שלך לא נמצאו במערכת' }]);
+        }
+
+        const profile = JSON.parse(userResult.profile_data);
+        const namePart = userResult.user_name ? `שלום ${userResult.user_name}, ` : '';
+
+        // בניית מערך הודעות נפרד לכל חלק במשפט
+        const messagesToPlay = [
+            { type: 'text', data: `${namePart}על פי הנתונים שיצאו מהמסע שלך, פילוח היסודות שלך הוא כך` },
+            { type: 'text', data: `אש, ${profile.fire.toFixed(0)} אחוזים` },
+            { type: 'text', data: `מים, ${profile.water.toFixed(0)} אחוזים` },
+            { type: 'text', data: `רוח, ${profile.air.toFixed(0)} אחוזים` },
+            { type: 'text', data: `עפר, ${profile.earth.toFixed(0)} אחוזים` },
+            { type: 'text', data: 'מיד תועבר לשמוע בפירוט על התכונות הייחודיות שלך' }
+        ];
+
+        // שימוש בפונקציה של הספרייה כדי לשלוח את פקודת ההשמעה לימות
+        return call.id_list_message(messagesToPlay);
+
+    } catch (e) {
+        console.error('❌ Error in /api/get-intro-text:', e);
+        // במקרה של תקלה בשרת, השמע הודעת שגיאה כללית
+        if (call) {
+            return call.id_list_message([{ type: 'text', data: 'אירעה שגיאה בשרת, אנא נסה שוב מאוחר יותר' }]);
+        }
+    }
 });
 app.post('/api/get-archetype/by-code', (req, res) => {
     try {
@@ -523,6 +535,7 @@ app.get('/images/test/game-summary', async (req, res) => {
         res.status(500).send('Error generating test image');
     }
 });
+app.use('/', router);
 
 // ===================================================================
 //                          SERVER STARTUP
