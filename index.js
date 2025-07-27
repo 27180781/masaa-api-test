@@ -378,13 +378,15 @@ app.post('/api/get-archetype/by-phone', (req, res) => {
         const result = db.prepare(query).get(phone);
 
         if (!result || result.archetype_id === null) {
-            // אם אין התאמה, השמע הודעת שגיאה ונתק
             const errorString = 'id_list_message=t-לא נמצאה התאמה עבור מספר הטלפון שלך&go_to_folder=hangup';
             return res.set('Content-Type', 'text/plain; charset=utf-8').send(errorString);
         }
 
-        // הרכבת הפקודה להשמעת הקובץ + העברה לשלוחה 1
-        const responseString = `id_list_message=f-${result.archetype_id}&go_to_folder=/1`;
+        //⭐️ שינוי: המרת המספר לפורמט של 3 ספרות
+        const fileId = String(result.archetype_id).padStart(3, '0');
+
+        // שימוש במזהה המרופד החדש
+        const responseString = `id_list_message=f-${fileId}&go_to_folder=/1`;
 
         res.set('Content-Type', 'text/plain; charset=utf-8').send(responseString);
 
