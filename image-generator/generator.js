@@ -1,45 +1,48 @@
 const sharp = require('sharp');
 const { COLORS, FONTS, LAYOUT } = require('./config.js');
 
-function createTextSvg(text, font, color, width, height) {
-    // פורמט הפונט חוזר להיות קלאסי
+function createTextSvg(text, font, color) {
     const [fontFamily, weight, size] = font.split(' ');
+    // שימוש ב-dy כדי למנוע חיתוך של האותיות התחתונות
     return Buffer.from(`
-    <svg width="${width}" height="${height}">
+    <svg width="1800" height="150">
       <style>
         .title { fill: ${color}; font-size: ${size}px; font-family: '${fontFamily}'; font-weight: ${weight}; }
       </style>
-      <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" class="title">${text}</text>
+      <text x="50%" y="50%" dy=".35em" dominant-baseline="middle" text-anchor="middle" class="title">${text}</text>
     </svg>`);
 }
 
-async function createGameSummaryImage(gameId, profile) {
+async function createGameSummaryImage(profile) {
     const { width, height, backgroundImagePath, barWidth, barMargin, chartHeight } = LAYOUT.summaryChart;
-    
-    const titleSvg = createTextSvg(
-        `סיכום תוצאות למשחק: ${gameId}`,
-        FONTS.title,
-        COLORS.title,
-        width,
-        150
+
+    // יצירת שכבות SVG עבור הכותרות
+    const mainTitleSvg = createTextSvg(
+        'סיכום תוצאות למשחק',
+        FONTS.mainTitle,
+        COLORS.title
+    );
+    const subtitleSvg = createTextSvg(
+        'פילוח היסודות לכלל המשתתפים',
+        FONTS.subtitle,
+        COLORS.title
     );
 
     const compositeLayers = [
-        { input: titleSvg, top: 0, left: 0 }
+        { input: mainTitleSvg, top: 20, left: 60 },
+        { input: subtitleSvg, top: 100, left: 60 }
     ];
     
     const elements = Object.keys(profile);
     const startX = (width - (elements.length * (barWidth + barMargin) - barMargin)) / 2;
 
-    // החלפת forEach בלולאת for...of שתומכת ב-await
-    let index = 0;
-    for (const element of elements) {
+    for (const [index, element] of elements.entries()) {
         const barHeight = (profile[element] / 100) * chartHeight;
         const x = startX + index * (barWidth + barMargin);
-        const y = height - 150 - barHeight;
+        const y = height - 100 - barHeight;
         const hebrewElement = { fire: 'אש', water: 'מים', air: 'אוויר', earth: 'אדמה' }[element] || element;
 
-        const barBuffer = await sharp({ // 'await' עובד כהלכה בתוך הלולאה הזו
+        const barBuffer = await sharp({
             create: {
                 width: barWidth,
                 height: Math.round(barHeight),
@@ -48,25 +51,19 @@ async function createGameSummaryImage(gameId, profile) {
             }
         }).png().toBuffer();
 
+        compositeLayers.push({ input: barBuffer, top: Math.round(y), left: Math.round(x) });
+        
         compositeLayers.push({
-            input: barBuffer,
-            top: Math.round(y),
-            left: Math.round(x)
+            input: createTextSvg(`${profile[element].toFixed(1)}%`, FONTS.percentage, COLORS.text),
+            top: Math.round(y - 70),
+            left: Math.round(x - ((1800 - barWidth) / 2)) // מרכוז הטקסט מעל העמודה
         });
-
+        
         compositeLayers.push({
-            input: createTextSvg(`${profile[element].toFixed(1)}%`, FONTS.percentage, COLORS.text, barWidth, 40),
-            top: Math.round(y - 50),
-            left: Math.round(x)
+            input: createTextSvg(hebrewElement, FONTS.label, COLORS.text),
+            top: Math.round(height - 130),
+            left: Math.round(x - ((1800 - barWidth) / 2)) // מרכוז הטקסט מתחת לעמודה
         });
-
-        compositeLayers.push({
-            input: createTextSvg(hebrewElement, FONTS.label, COLORS.text, barWidth, 50),
-            top: Math.round(height - 120),
-            left: Math.round(x)
-        });
-
-        index++; // קידום האינדקס באופן ידני
     }
 
     const finalImageBuffer = await sharp(backgroundImagePath)
