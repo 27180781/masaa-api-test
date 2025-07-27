@@ -235,7 +235,8 @@ app.get('/api/results/:gameId', (req, res) => {
 });
 
 
-// --- Helper Functions ---function findClosestArchetype(userProfile) {
+// --- Helper Functions ---
+function findClosestArchetype(userProfile) {
     if (process.env.LOG_LEVEL === 'debug') {
         console.log('[DEBUG] findClosestArchetype function started.');
     }
@@ -277,7 +278,7 @@ app.get('/api/results/:gameId', (req, res) => {
     if (process.env.LOG_LEVEL === 'debug') {
         console.log(`[DEBUG] Calculation finished. Best match ID: ${bestMatch ? bestMatch.type_id : 'None'}. Score: ${minDifference}`);
     }
-    
+}    
     return { archetype: bestMatch, score: minDifference };
 
 function processInsightsForProfile(profile, insights) {
