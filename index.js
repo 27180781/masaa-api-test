@@ -527,30 +527,45 @@ app.post('/api/submit-results', async (req, res) => {
 });
 
 // --- Image Generation API ---
-app.get('/images/game-summary/:gameId.png', async (req, res) => {
+app.get('/images/game-summary/:gameId.png', async (req, res) => { // הוספת async
     try {
         const { gameId } = req.params;
         const row = db.prepare('SELECT game_average_profile FROM game_summaries WHERE game_id = ?').get(gameId);
-        if (!row) return res.status(404).send('Results not found for this game ID');
+        
+        if (!row) {
+            return res.status(404).send('Results not found for this game ID');
+        }
+        
         const profile = JSON.parse(row.game_average_profile);
-        if (!profile) return res.status(404).send('No average profile found for this game');
-        const canvas = await imageGenerator.createGameSummaryImage(gameId, profile);
+        if (!profile) {
+            return res.status(404).send('No average profile found for this game');
+        }
+
+        const imageBuffer = await imageGenerator.createGameSummaryImage(gameId, profile);
+        
         res.setHeader('Content-Type', 'image/png');
-        canvas.createPNGStream().pipe(res);
-    } catch (error) {
+        // ⬅️ שולחים את הבאפר ישירות
+        res.send(imageBuffer);
+
+    } catch (error) { 
         console.error('❌ Error generating image:', error);
         res.status(500).send('Error generating image');
     }
 });
 app.get('/images/test/game-summary', async (req, res) => {
-    console.log('🧪 Generating a test image...');
     try {
+        console.log('🧪 Generating a test image...');
         const mockGameId = 'משחק-בדיקה-123';
         const mockProfile = { fire: 35.5, water: 20.1, air: 14.9, earth: 29.5 };
-        const canvas = await imageGenerator.createGameSummaryImage(mockGameId, mockProfile);
+
+        // הפונקציה מחזירה עכשיו באפר מוכן
+        const imageBuffer = await imageGenerator.createGameSummaryImage(mockGameId, mockProfile);
+        
         res.setHeader('Content-Type', 'image/png');
-        canvas.createPNGStream().pipe(res);
-    } catch (error) {
+        // ⬅️ שולחים את הבאפר ישירות
+        res.send(imageBuffer);
+
+    } catch (error) { 
         console.error('❌ Error generating test image:', error);
         res.status(500).send('Error generating test image');
     }
