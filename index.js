@@ -324,43 +324,49 @@ app.get('/api/my-result/by-phone/:phone', (req, res) => {
 });
 
 // --- API for IVR System ---
-router.post('/api/get-intro-text', async (call) => {
+app.post('/api/get-intro-text', (req, res) => {
     try {
-        const phone = call.phone; 
+        const phone = req.body.ApiPhone;
         if (!phone) {
-            return call.id_list_message([{ type: 'text', data: 'מספר טלפון לא התקבל' }]);
+            // אם אין טלפון, שלח פקודת ניתוק
+            return res.set('Content-Type', 'text/plain; charset=utf-8').send('go_to_folder=hangup');
         }
 
         const query = `SELECT T1.user_name, T1.profile_data FROM individual_results T1 JOIN games T2 ON T1.game_id = T2.game_id WHERE T1.id = ? ORDER BY T2.completed_at DESC LIMIT 1`;
         const userResult = db.prepare(query).get(phone);
 
         if (!userResult) {
-            return call.id_list_message([{ type: 'text', data: 'הנתונים שלך לא נמצאו במערכת' }]);
+            // אם אין נתונים, השמע הודעה ונתק
+            const responseString = 'id_list_message=t-הנתונים שלך לא נמצאו במערכת';
+            return res.set('Content-Type', 'text/plain; charset=utf-8').send(responseString);
         }
 
         const profile = JSON.parse(userResult.profile_data);
-        const namePart = userResult.user_name ? `שלום ${userResult.user_name}, ` : '';
+        const namePart = userResult.user_name ? `שלום ${userResult.user_name} ` : '';
 
-        // ⭐️ שינוי: ניסוח מחדש של ההודעות ללא פסיקים
-        const messagesToPlay = [
-            { type: 'text', data: `${namePart}על פי הנתונים שיצאו מהמסע שלך פילוח היסודות שלך הוא כך` },
-            { type: 'text', data: `יסוד האש ${profile.fire.toFixed(0)} אחוזים` },
-            { type: 'text', data: `יסוד המים ${profile.water.toFixed(0)} אחוזים` },
-            { type: 'text', data: `יסוד הרוח ${profile.air.toFixed(0)} אחוזים` },
-            { type: 'text', data: `יסוד העפר ${profile.earth.toFixed(0)} אחוזים` },
-            { type: 'text', data: 'מיד תועבר לשמוע בפירוט על התכונות הייחודיות שלך' }
+        // בניית חלקי ההודעה
+        const messages = [
+            `t-${namePart}על פי הנתונים שיצאו מהמסע שלך פילוח היסודות שלך הוא כך`,
+            `t-יסוד האש ${profile.fire.toFixed(0)} אחוזים`,
+            `t-יסוד המים ${profile.water.toFixed(0)} אחוזים`,
+            `t-יסוד הרוח ${profile.air.toFixed(0)} אחוזים`,
+            `t-יסוד העפר ${profile.earth.toFixed(0)} אחוזים`,
+            `t-מיד תועבר לשמוע בפירוט על התכונות הייחודיות שלך`
         ];
+        
+        // הרכבת מחרוזת הפקודה הסופית
+        const finalResponseString = `id_list_message=${messages.join('.')}`;
 
-        return call.id_list_message(messagesToPlay);
+        // שליחת הפקודה הבנויה ידנית לימות המשיח
+        res.set('Content-Type', 'text/plain; charset=utf-8').send(finalResponseString);
 
     } catch (e) {
-        console.error('❌ Error in /api/get-intro-text:', e);
-        if (call) {
-            return call.id_list_message([{ type: 'text', data: 'אירעה שגיאה בשרת אנא נסה שוב מאוחר יותר' }]);
-        }
+        console.error('❌ Error in manual /api/get-intro-text:', e);
+        // במקרה של תקלה, השמע הודעת שגיאה כללית ונתק
+        const errorString = 'id_list_message=t-אירעה שגיאה בשרת אנא נסה שוב מאוחר יותר';
+        res.set('Content-Type', 'text/plain; charset=utf-8').send(errorString);
     }
 });
-
 app.post('/api/get-archetype/by-phone', (req, res) => {
     try {
         const phone = req.body.ApiPhone;
