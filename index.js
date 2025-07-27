@@ -345,14 +345,14 @@ app.post('/api/get-intro-text', (req, res) => {
         const namePart = userResult.user_name ? `שלום ${userResult.user_name} ` : '';
 
         // בניית חלקי ההודעה
-        const messages = [
-            `t-${namePart}על פי הנתונים שיצאו מהמסע שלך פילוח היסודות שלך הוא כך`,
-            `t-יסוד האש ${profile.fire.toFixed(0)} אחוזים`,
-            `t-יסוד המים ${profile.water.toFixed(0)} אחוזים`,
-            `t-יסוד הרוח ${profile.air.toFixed(0)} אחוזים`,
-            `t-יסוד העפר ${profile.earth.toFixed(0)} אחוזים`,
-            `t-מיד תועבר לשמוע בפירוט על התכונות הייחודיות שלך`
-        ];
+         const messages = [
+    `t-${namePart}על פי הנתונים שיצאו מהמסע שלך פילוח היסודות שלך הוא כך`,
+    `t-יסוד האש ${profile.fire.toFixed(0)} אחוזים`,
+    `t-יסוד המים ${profile.water.toFixed(0)} אחוזים`,
+    `t-יסוד הרוח ${profile.air.toFixed(0)} אחוזים`,
+    `t-יסוד העפר ${profile.earth.toFixed(0)} אחוזים`,
+    `t-סוף ההודעה` //⭐️ שינינו את ההודעה האחרונה למשהו פשוט
+];
         
         // הרכבת מחרוזת הפקודה הסופית
         const finalResponseString = `id_list_message=${messages.join('.')}`;
