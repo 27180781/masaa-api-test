@@ -355,8 +355,8 @@ app.post('/api/get-intro-text', (req, res) => {
 ];
         
         // הרכבת מחרוזת הפקודה הסופית
-        const finalResponseString = `id_list_message=${messages.join('.')}`;
-
+// הרכבת מחרוזת הפקודה הסופית עם פקודת העברה
+const finalResponseString = `id_list_message=${messages.join('.')}&go_to_folder=/1`;
         // שליחת הפקודה הבנויה ידנית לימות המשיח
         res.set('Content-Type', 'text/plain; charset=utf-8').send(finalResponseString);
 
