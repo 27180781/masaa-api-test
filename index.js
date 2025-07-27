@@ -17,7 +17,9 @@ const imageGenerator = require('./image-generator/generator.js');
 const archetypes = require('./archetypes.js');
 const { YemotRouter } = require('yemot-router2');
 
-const router = YemotRouter();
+const router = YemotRouter({
+    defaults: { removeInvalidChars: true }
+});
 
 if (process.env.LOG_LEVEL === 'debug') {
     console.log(`[DEBUG] archetypes.js loaded with ${archetypes.length} entries.`);
@@ -324,30 +326,37 @@ app.get('/api/my-result/by-phone/:phone', (req, res) => {
 // --- API for IVR System ---
 router.post('/api/get-intro-text', async (call) => {
     try {
-        const phone = call.phone;
+        const phone = call.phone; 
         if (!phone) {
             return call.id_list_message([{ type: 'text', data: 'מספר טלפון לא התקבל' }]);
         }
+
         const query = `SELECT T1.user_name, T1.profile_data FROM individual_results T1 JOIN games T2 ON T1.game_id = T2.game_id WHERE T1.id = ? ORDER BY T2.completed_at DESC LIMIT 1`;
         const userResult = db.prepare(query).get(phone);
+
         if (!userResult) {
             return call.id_list_message([{ type: 'text', data: 'הנתונים שלך לא נמצאו במערכת' }]);
         }
+
         const profile = JSON.parse(userResult.profile_data);
         const namePart = userResult.user_name ? `שלום ${userResult.user_name}, ` : '';
+
+        // ⭐️ שינוי: ניסוח מחדש של ההודעות ללא פסיקים
         const messagesToPlay = [
-            { type: 'text', data: `${namePart}על פי הנתונים שיצאו מהמסע שלך, פילוח היסודות שלך הוא כך` },
-            { type: 'text', data: `אש, ${profile.fire.toFixed(0)} אחוזים` },
-            { type: 'text', data: `מים, ${profile.water.toFixed(0)} אחוזים` },
-            { type: 'text', data: `רוח, ${profile.air.toFixed(0)} אחוזים` },
-            { type: 'text', data: `עפר, ${profile.earth.toFixed(0)} אחוזים` },
+            { type: 'text', data: `${namePart}על פי הנתונים שיצאו מהמסע שלך פילוח היסודות שלך הוא כך` },
+            { type: 'text', data: `יסוד האש ${profile.fire.toFixed(0)} אחוזים` },
+            { type: 'text', data: `יסוד המים ${profile.water.toFixed(0)} אחוזים` },
+            { type: 'text', data: `יסוד הרוח ${profile.air.toFixed(0)} אחוזים` },
+            { type: 'text', data: `יסוד העפר ${profile.earth.toFixed(0)} אחוזים` },
             { type: 'text', data: 'מיד תועבר לשמוע בפירוט על התכונות הייחודיות שלך' }
         ];
+
         return call.id_list_message(messagesToPlay);
+
     } catch (e) {
         console.error('❌ Error in /api/get-intro-text:', e);
         if (call) {
-            return call.id_list_message([{ type: 'text', data: 'אירעה שגיאה בשרת, אנא נסה שוב מאוחר יותר' }]);
+            return call.id_list_message([{ type: 'text', data: 'אירעה שגיאה בשרת אנא נסה שוב מאוחר יותר' }]);
         }
     }
 });
