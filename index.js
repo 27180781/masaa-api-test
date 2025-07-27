@@ -527,7 +527,7 @@ app.get('/images/test/game-summary', async (req, res) => {
 // ===================================================================
 //                          SERVER STARTUP
 // ===================================================================
-app.use('/', router); // Connect the Yemot router to the app
+app.use('/', router.asExpressRouter); // ⭐️ שינוי: הוספת asExpressRouter
 
 const server = http.createServer(app);
 const io = new Server(server, {
