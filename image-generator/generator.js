@@ -1,13 +1,13 @@
 const sharp = require('sharp');
 const { COLORS, FONTS, LAYOUT } = require('./config.js');
 
-function createTextSvg(text, font, color) {
+// פונקציית עזר משופרת שמקבלת מידות
+function createTextSvg(text, font, color, width, height) {
     const [fontFamily, weight, size] = font.split(' ');
-    // שימוש ב-dy כדי למנוע חיתוך של האותיות התחתונות
     return Buffer.from(`
-    <svg width="1800" height="150">
+    <svg width="${width}" height="${height}">
       <style>
-        .title { fill: ${color}; font-size: ${size}px; font-family: '${fontFamily}'; font-weight: ${weight}; }
+        .title { fill: ${color}; font-size: ${size}px; font-family: '${fontFamily}'; font-weight: ${weight}; text-align: center; }
       </style>
       <text x="50%" y="50%" dy=".35em" dominant-baseline="middle" text-anchor="middle" class="title">${text}</text>
     </svg>`);
@@ -16,21 +16,12 @@ function createTextSvg(text, font, color) {
 async function createGameSummaryImage(profile) {
     const { width, height, backgroundImagePath, barWidth, barMargin, chartHeight } = LAYOUT.summaryChart;
 
-    // יצירת שכבות SVG עבור הכותרות
-    const mainTitleSvg = createTextSvg(
-        'סיכום תוצאות למשחק',
-        FONTS.mainTitle,
-        COLORS.title
-    );
-    const subtitleSvg = createTextSvg(
-        'פילוח היסודות לכלל המשתתפים',
-        FONTS.subtitle,
-        COLORS.title
-    );
+    const mainTitleSvg = createTextSvg('סיכום תוצאות למשחק', FONTS.mainTitle, COLORS.title, width, 150);
+    const subtitleSvg = createTextSvg('פילוח היסודות לכלל המשתתפים', FONTS.subtitle, COLORS.title, width, 80);
 
     const compositeLayers = [
-        { input: mainTitleSvg, top: 20, left: 60 },
-        { input: subtitleSvg, top: 100, left: 60 }
+        { input: mainTitleSvg, top: 20, left: 0 },
+        { input: subtitleSvg, top: 100, left: 0 }
     ];
     
     const elements = Object.keys(profile);
@@ -42,71 +33,52 @@ async function createGameSummaryImage(profile) {
         const y = height - 100 - barHeight;
         const hebrewElement = { fire: 'אש', water: 'מים', air: 'אוויר', earth: 'אדמה' }[element] || element;
 
-        const barBuffer = await sharp({
-            create: {
-                width: barWidth,
-                height: Math.round(barHeight),
-                channels: 4,
-                background: COLORS.elements[element] || COLORS.elements.default
-            }
-        }).png().toBuffer();
+        const barBuffer = await sharp({ create: { width: barWidth, height: Math.round(barHeight), channels: 4, background: COLORS.elements[element] || COLORS.elements.default } }).png().toBuffer();
 
         compositeLayers.push({ input: barBuffer, top: Math.round(y), left: Math.round(x) });
         
         compositeLayers.push({
-            input: createTextSvg(`${profile[element].toFixed(1)}%`, FONTS.percentage, COLORS.text),
+            input: createTextSvg(`${profile[element].toFixed(1)}%`, FONTS.percentage, COLORS.text, barWidth, 70),
             top: Math.round(y - 70),
-            left: Math.round(x - ((1800 - barWidth) / 2)) // מרכוז הטקסט מעל העמודה
+            left: Math.round(x)
         });
         
         compositeLayers.push({
-            input: createTextSvg(hebrewElement, FONTS.label, COLORS.text),
-            top: Math.round(height - 130),
-            left: Math.round(x - ((1800 - barWidth) / 2)) // מרכוז הטקסט מתחת לעמודה
+            input: createTextSvg(hebrewElement, FONTS.label, COLORS.text, barWidth, 50),
+            top: Math.round(height - 100),
+            left: Math.round(x)
         });
     }
 
-    const finalImageBuffer = await sharp(backgroundImagePath)
-        .composite(compositeLayers)
-        .toBuffer();
-
+    const finalImageBuffer = await sharp(backgroundImagePath).composite(compositeLayers).toBuffer();
     return finalImageBuffer;
 }
+
 async function createLicenseStatusImage(status) {
     const { width, height, backgroundImagePath } = LAYOUT.licenseStatus;
-
     let compositeLayers = [];
 
     if (status === 'valid') {
-        const textSvg = createTextSvg(
-            'רישיון המשחק בתוקף, ניתן להתחיל לשחק',
-            FONTS.statusText,
-            COLORS.statusOk
-        );
+        const textSvg = createTextSvg('רישיון המשחק בתוקף, ניתן להתחיל לשחק', FONTS.statusText, COLORS.statusOk, width, height);
         compositeLayers.push({ input: textSvg, top: 0, left: 0 });
     } else { // status === 'expired'
-        const mainTextSvg = createTextSvg(
-            'פג תוקף רישיון המשחק',
-            FONTS.statusText,
-            COLORS.statusError
-        );
-        const warningTextSvg = createTextSvg(
-            'נראה ששוחק כבר פעם אחת. המשך יביא לחסימת המחשב ומחיקת נתוני המשחק.',
-            FONTS.warningText,
-            COLORS.text // צבע לבן רגיל לאזהרה
-        );
-        compositeLayers.push({ input: mainTextSvg, top: 150, left: 0 });
-        compositeLayers.push({ input: warningTextSvg, top: 250, left: 0 });
+        const mainTextSvg = createTextSvg('פג תוקף רישיון המשחק', FONTS.statusText, COLORS.statusError, width, 100);
+        const warningTextSvg = createTextSvg('נראה ששוחק כבר פעם אחת. המשך יביא לחסימת המחשב ומחיקת נתוני המשחק.', FONTS.warningText, COLORS.text, width, 100);
+        
+        compositeLayers.push({ input: mainTextSvg, top: Math.round(height / 2) - 100, left: 0 });
+        compositeLayers.push({ input: warningTextSvg, top: Math.round(height / 2), left: 0 });
     }
 
     const finalImageBuffer = await sharp(backgroundImagePath)
-        .resize(width, height) // התאמת הרקע לגודל החדש
+        .resize(width, height)
         .composite(compositeLayers)
         .toBuffer();
 
     return finalImageBuffer;
 }
+
+
 module.exports = {
     createGameSummaryImage,
-    createLicenseStatusImage // ⬅️ הוספה
+    createLicenseStatusImage
 };
