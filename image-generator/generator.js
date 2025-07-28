@@ -72,7 +72,41 @@ async function createGameSummaryImage(profile) {
 
     return finalImageBuffer;
 }
+async function createLicenseStatusImage(status) {
+    const { width, height, backgroundImagePath } = LAYOUT.licenseStatus;
 
+    let compositeLayers = [];
+
+    if (status === 'valid') {
+        const textSvg = createTextSvg(
+            'רישיון המשחק בתוקף, ניתן להתחיל לשחק',
+            FONTS.statusText,
+            COLORS.statusOk
+        );
+        compositeLayers.push({ input: textSvg, top: 0, left: 0 });
+    } else { // status === 'expired'
+        const mainTextSvg = createTextSvg(
+            'פג תוקף רישיון המשחק',
+            FONTS.statusText,
+            COLORS.statusError
+        );
+        const warningTextSvg = createTextSvg(
+            'נראה ששוחק כבר פעם אחת. המשך יביא לחסימת המחשב ומחיקת נתוני המשחק.',
+            FONTS.warningText,
+            COLORS.text // צבע לבן רגיל לאזהרה
+        );
+        compositeLayers.push({ input: mainTextSvg, top: 150, left: 0 });
+        compositeLayers.push({ input: warningTextSvg, top: 250, left: 0 });
+    }
+
+    const finalImageBuffer = await sharp(backgroundImagePath)
+        .resize(width, height) // התאמת הרקע לגודל החדש
+        .composite(compositeLayers)
+        .toBuffer();
+
+    return finalImageBuffer;
+}
 module.exports = {
-    createGameSummaryImage
+    createGameSummaryImage,
+    createLicenseStatusImage // ⬅️ הוספה
 };

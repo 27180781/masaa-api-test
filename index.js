@@ -556,6 +556,28 @@ app.get('/images/game-summary/:gameId.png', async (req, res) => {
         res.status(500).send('Error generating image');
     }
 });
+app.get('/images/license-status/:gameId.png', async (req, res) => {
+    try {
+        const { gameId } = req.params;
+        const game = db.prepare('SELECT status FROM games WHERE game_id = ?').get(gameId);
+
+        if (!game) {
+            return res.status(404).send('Game not found');
+        }
+
+        // קביעת הסטטוס להעברה לפונקציית יצירת התמונה
+        const licenseStatus = (game.status === 'completed') ? 'expired' : 'valid';
+
+        const imageBuffer = await imageGenerator.createLicenseStatusImage(licenseStatus);
+        
+        res.setHeader('Content-Type', 'image/png');
+        res.send(imageBuffer);
+
+    } catch (error) { 
+        console.error('❌ Error generating license status image:', error);
+        res.status(500).send('Error generating image');
+    }
+});
 // ===================================================================
 //                          SERVER STARTUP
 // ===================================================================

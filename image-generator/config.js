@@ -7,14 +7,18 @@ const COLORS = {
         air: 'rgba(241, 196, 15, 0.9)',
         earth: 'rgba(46, 204, 113, 0.9)',
         default: 'rgba(204, 204, 204, 0.9)'
-    }
+    }, // ⬅️ הוספת פסיק
+    statusOk: '#2ecc71',      // ירוק
+    statusError: '#e74c3c'  // אדום
 };
 
 const FONTS = {
     mainTitle: 'FbKanuba Bold 60',  // כותרת ראשית
     subtitle: 'FbKanuba 50',       // כותרת משנה
     label: 'FbKanuba Bold 40',        // הגדלת הפונט של שמות היסודות
-    percentage: 'FbKanuba Bold 32'
+    percentage: 'FbKanuba Bold 32', // ⬅️ הוספת פסיק
+    statusText: 'FbKanuba Bold 72',
+    warningText: 'FbKanuba 36'
 };
 
 const LAYOUT = {
@@ -25,6 +29,11 @@ const LAYOUT = {
         barWidth: 220,      // הרחבת העמודות
         barMargin: 80,
         chartHeight: 600    // הגבהת העמודות
+    }, // ⬅️ הוספת פסיק
+    licenseStatus: {
+        width: 1200,
+        height: 630, // גודל סטנדרטי לשיתוף ברשתות חברתיות
+        backgroundImagePath: './assets/background.png'
     }
 };
 
