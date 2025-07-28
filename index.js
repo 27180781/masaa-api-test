@@ -578,6 +578,26 @@ app.get('/images/license-status/:gameId.png', async (req, res) => {
         res.status(500).send('Error generating image');
     }
 });
+app.get('/images/group-breakdown/:gameId.png', async (req, res) => {
+    try {
+        const { gameId } = req.params;
+        const groupsData = db.prepare('SELECT group_name, profile_data FROM group_results WHERE game_id = ?').all(gameId);
+        
+        const groups = groupsData.map(g => ({
+            group_name: g.group_name,
+            profile: JSON.parse(g.profile_data)
+        }));
+
+        const imageBuffer = await imageGenerator.createGroupBreakdownImage(groups);
+        
+        res.setHeader('Content-Type', 'image/png');
+        res.send(imageBuffer);
+
+    } catch (error) { 
+        console.error('❌ Error generating group breakdown image:', error);
+        res.status(500).send('Error generating image');
+    }
+});
 // ===================================================================
 //                          SERVER STARTUP
 // ===================================================================

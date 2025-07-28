@@ -19,8 +19,9 @@ const FONTS = {
     percentage: 'FbKanuba Bold 32', // ⬅️ הוספת פסיק
     statusText: 'FbKanuba Bold 72',
     warningText: 'FbKanuba 60'
-};
-
+    groupTitle: 'FbKanuba Bold 48',
+    noDataMessage: 'FbKanuba Bold 60'
+}
 const LAYOUT = {
     summaryChart: {
         width: 1920,
@@ -34,6 +35,12 @@ const LAYOUT = {
         width: 1920,
         height: 1080, // גודל סטנדרטי לשיתוף ברשתות חברתיות
         backgroundImagePath: './assets/background.png'
+      groupBreakdown: {
+        width: 1920,
+        height: 1080,
+        backgroundImagePath: './assets/background.png',
+        pieRadius: 150, // רדיוס לכל גרף עוגה
+        padding: 80 // ריווח פנימי
     }
 };
 
