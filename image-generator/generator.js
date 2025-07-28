@@ -2,7 +2,6 @@ const sharp = require('sharp');
 const { COLORS, FONTS, LAYOUT } = require('./config.js');
 
 // פונקציית עזר כללית ליצירת טקסט כ-SVG
-
 function createTextSvg(text, font, color, width, height) {
     const [fontFamily, weight, size] = font.split(' ');
 
@@ -33,6 +32,7 @@ function createTextSvg(text, font, color, width, height) {
       <text x="50%" y="50%" dy=".35em" dominant-baseline="middle" text-anchor="middle" class="title">${text}</text>
     </svg>`);
 }
+
 // פונקציית עזר חדשה ליצירת גרף עוגה כ-SVG
 function createPieChartSvg(profile, radius) {
     const size = radius * 2;
@@ -60,6 +60,23 @@ function createPieChartSvg(profile, radius) {
     }
 
     return Buffer.from(`<svg width="${size}" height="${size}">${slices.join('')}</svg>`);
+}
+
+// פונקציית עזר חדשה ליצירת פס התפלגות צבעוני
+function createDistributionBarSvg(profile, width, height) {
+    const segments = [];
+    let accumulatedWidth = 0;
+    const elements = ['fire', 'water', 'air', 'earth']; // סדר קבוע
+
+    for (const element of elements) {
+        const percent = profile[element] || 0;
+        if (percent > 0) {
+            const segmentWidth = (percent / 100) * width;
+            segments.push(`<rect x="${accumulatedWidth}" y="0" width="${segmentWidth}" height="${height}" fill="${COLORS.elements[element]}" />`);
+            accumulatedWidth += segmentWidth;
+        }
+    }
+    return Buffer.from(`<svg width="${width}" height="${height}">${segments.join('')}</svg>`);
 }
 
 
@@ -103,7 +120,7 @@ async function createGameSummaryImage(profile) {
     }
 
     const finalImageBuffer = await sharp(backgroundImagePath)
-        .resize(width, height) // ⬅️ הוספת השורה החסרה
+        .resize(width, height)
         .composite(compositeLayers)
         .toBuffer();
 
@@ -188,9 +205,84 @@ async function createLicenseStatusImage(status) {
     return finalImageBuffer;
 }
 
+// פונקציה חדשה ליצירת רשימת המשתתפים
+async function createParticipantListImage(participants) {
+    const config = LAYOUT.participantList;
+    const { width, height, backgroundImagePath, padding, barWidth, barHeight, rowGap } = config;
+
+    // מקרה קצה: אין משתתפים
+    if (!participants || participants.length === 0) {
+        const noDataSvg = createTextSvg('לא נמצאו משתתפים להצגה', FONTS.noDataMessage, COLORS.title, width, height);
+        return sharp(backgroundImagePath).resize(width, height).composite([{ input: noDataSvg }]).toBuffer();
+    }
+
+    const compositeLayers = [];
+    const legendHeight = 80;
+
+    // 1. יצירת המקרא
+    const legendItems = [];
+    const hebrewElements = { fire: 'אש', water: 'מים', air: 'אוויר', earth: 'אדמה' };
+    let legendX = padding;
+    for (const element of ['fire', 'water', 'air', 'earth']) {
+        const colorSquare = sharp({ create: { width: 30, height: 30, channels: 4, background: COLORS.elements[element] } }).png().toBuffer();
+        const textSvg = createTextSvg(hebrewElements[element], FONTS.legendText, COLORS.text, 100, 40);
+        legendItems.push({ input: await colorSquare, top: padding - 20, left: legendX });
+        legendItems.push({ input: textSvg, top: padding - 25, left: legendX + 35 });
+        legendX += 150;
+    }
+    compositeLayers.push(...legendItems);
+
+    // 2. חישוב פריסה דינמית
+    const maxCols = 5; // ניתן לשנות את מספר העמודות
+    const availableWidth = width - padding * 2;
+    const colWidth = availableWidth / maxCols;
+    const rows = Math.ceil(participants.length / maxCols);
+    
+    // חישוב גובה שורה וגודל פונט דינמי
+    const availableHeight = height - legendHeight - padding;
+    let rowHeight = availableHeight / rows;
+    let fontSize = parseInt(FONTS.participantName.split(' ')[2]);
+    if (rowHeight < 50) { // אם השורות צפופות מדי, נקטין את הפונט
+        fontSize = Math.max(18, Math.floor(fontSize * (rowHeight / 50)));
+    }
+    const dynamicFont = `FbKanuba Bold ${fontSize}`;
+
+
+    // 3. יצירת רשימת המשתתפים
+    for (const [index, participant] of participants.entries()) {
+        const row = Math.floor(index / maxCols);
+        const col = index % maxCols;
+        
+        const x = padding + col * colWidth;
+        const y = legendHeight + row * (barHeight + rowGap);
+
+        // שם המשתתף
+        compositeLayers.push({
+            input: createTextSvg(participant.name, dynamicFont, COLORS.text, colWidth - barWidth - 20, barHeight),
+            top: y,
+            left: x
+        });
+
+        // פס התפלגות
+        compositeLayers.push({
+            input: createDistributionBarSvg(participant.profile, barWidth, barHeight),
+            top: y,
+            left: x + colWidth - barWidth - 10
+        });
+    }
+
+    const finalImageBuffer = await sharp(backgroundImagePath)
+        .resize(width, height)
+        .composite(compositeLayers)
+        .toBuffer();
+
+    return finalImageBuffer;
+}
+
 
 module.exports = {
     createGameSummaryImage,
     createLicenseStatusImage,
-    createGroupBreakdownImage // ⬅️ הוספת הפונקציה החדשה
+    createGroupBreakdownImage,
+    createParticipantListImage // ⬅️ הוספת הפונקציה החדשה
 };

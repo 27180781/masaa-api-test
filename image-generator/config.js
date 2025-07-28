@@ -20,7 +20,9 @@ const FONTS = {
     statusText: 'FbKanuba Bold 72',
     warningText: 'FbKanuba 36',
     groupTitle: 'FbKanuba Bold 48',
-    noDataMessage: 'FbKanuba Bold 60'
+    noDataMessage: 'FbKanuba Bold 60',
+    participantName: 'FbKanuba Bold 32',
+    legendText: 'FbKanuba 30'
 };
 
 const LAYOUT = {
@@ -43,6 +45,15 @@ const LAYOUT = {
         backgroundImagePath: './assets/background.png',
         pieRadius: 150,
         padding: 80
+    },
+    participantList: {
+        width: 1920,
+        height: 1080,
+        backgroundImagePath: './assets/background.png',
+        padding: 60,
+        barWidth: 300,
+        barHeight: 30,
+        rowGap: 15
     }
 };
 

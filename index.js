@@ -598,6 +598,26 @@ app.get('/images/group-breakdown/:gameId.png', async (req, res) => {
         res.status(500).send('Error generating image');
     }
 });
+app.get('/images/participant-list/:gameId.png', async (req, res) => {
+    try {
+        const { gameId } = req.params;
+        const participantsData = db.prepare('SELECT user_name, profile_data FROM individual_results WHERE game_id = ?').all(gameId);
+        
+        const participants = participantsData.map(p => ({
+            name: p.user_name,
+            profile: JSON.parse(p.profile_data)
+        }));
+
+        const imageBuffer = await imageGenerator.createParticipantListImage(participants);
+        
+        res.setHeader('Content-Type', 'image/png');
+        res.send(imageBuffer);
+
+    } catch (error) { 
+        console.error('❌ Error generating participant list image:', error);
+        res.status(500).send('Error generating image');
+    }
+});
 // ===================================================================
 //                          SERVER STARTUP
 // ===================================================================
