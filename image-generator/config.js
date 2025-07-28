@@ -12,7 +12,7 @@ const COLORS = {
 
 const FONTS = {
     mainTitle: 'FbKanuba Bold 60',  // כותרת ראשית
-    subtitle: 'FbKanuba 42',       // כותרת משנה
+    subtitle: 'FbKanuba 50',       // כותרת משנה
     label: 'FbKanuba Bold 40',        // הגדלת הפונט של שמות היסודות
     percentage: 'FbKanuba Bold 32'
 };
