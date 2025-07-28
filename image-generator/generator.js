@@ -2,17 +2,37 @@ const sharp = require('sharp');
 const { COLORS, FONTS, LAYOUT } = require('./config.js');
 
 // פונקציית עזר כללית ליצירת טקסט כ-SVG
+
 function createTextSvg(text, font, color, width, height) {
     const [fontFamily, weight, size] = font.split(' ');
+
+    // משתנה שיכיל את הגדרות המסגרת, אם צריך
+    let strokeStyle = '';
+
+    // תנאי: הוסף מסגרת רק אם הצבע אינו לבן
+    if (color.toLowerCase() !== '#ffffff') {
+        strokeStyle = `
+         stroke: white;
+         stroke-width: 8px;
+         paint-order: stroke fill;
+        `;
+    }
+
     return Buffer.from(`
     <svg width="${width}" height="${height}">
       <style>
-        .title { fill: ${color}; font-size: ${size}px; font-family: '${fontFamily}'; font-weight: ${weight}; text-align: center; }
+        .title {
+         fill: ${color};
+         font-size: ${size}px;
+         font-family: '${fontFamily}';
+         font-weight: ${weight};
+         text-align: center;
+         ${strokeStyle}
+        }
       </style>
       <text x="50%" y="50%" dy=".35em" dominant-baseline="middle" text-anchor="middle" class="title">${text}</text>
     </svg>`);
 }
-
 // פונקציית עזר חדשה ליצירת גרף עוגה כ-SVG
 function createPieChartSvg(profile, radius) {
     const size = radius * 2;
