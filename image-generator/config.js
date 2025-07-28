@@ -31,8 +31,8 @@ const LAYOUT = {
         chartHeight: 600    // הגבהת העמודות
     }, // ⬅️ הוספת פסיק
     licenseStatus: {
-        width: 1200,
-        height: 630, // גודל סטנדרטי לשיתוף ברשתות חברתיות
+        width: 1920,
+        height: 1080, // גודל סטנדרטי לשיתוף ברשתות חברתיות
         backgroundImagePath: './assets/background.png'
     }
 };

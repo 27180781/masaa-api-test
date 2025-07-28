@@ -3,14 +3,24 @@ const { COLORS, FONTS, LAYOUT } = require('./config.js');
 
 // פונקציית עזר משופרת שמקבלת מידות
 function createTextSvg(text, font, color, width, height) {
-    const [fontFamily, weight, size] = font.split(' ');
-    return Buffer.from(`
-    <svg width="${width}" height="${height}">
-      <style>
-        .title { fill: ${color}; font-size: ${size}px; font-family: '${fontFamily}'; font-weight: ${weight}; text-align: center; }
-      </style>
-      <text x="50%" y="50%" dy=".35em" dominant-baseline="middle" text-anchor="middle" class="title">${text}</text>
-    </svg>`);
+ const [fontFamily, weight, size] = font.split(' ');
+ return Buffer.from(`
+ <svg width="${width}" height="${height}">
+  <style>
+   .title {
+    fill: ${color};
+    font-size: ${size}px;
+    font-family: '${fontFamily}';
+    font-weight: ${weight};
+    text-align: center;
+    stroke: white;           /* הוספת צבע המסגרת */
+    stroke-width: 8px;       /* הוספת עובי המסגרת */
+    paint-order: stroke fill; /* מבטיח שהמסגרת מאחורי המילוי */
+   }
+  </style>
+  <text x="50%" y="50%" dy=".35em" dominant-baseline="middle" text-anchor="middle" class="title">${text}</text>
+ </svg>
+ `);
 }
 
 async function createGameSummaryImage(profile) {
