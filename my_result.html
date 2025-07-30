@@ -325,37 +325,76 @@
             insightsContainer.innerHTML = html;
         }
 
-        function setupAudioPlayer(phoneNumber) {
-            audioPlayerContainer.innerHTML = ''; // Clear previous content
-            const audioButton = document.createElement('button');
-            audioButton.id = 'searchButton'; // Reuse button style
-            audioButton.innerHTML = '🎧 לשמוע על התכונות שלכם בהרחבה';
+function setupAudioPlayer(phoneNumber) {
+    audioPlayerContainer.innerHTML = ''; // Clear previous content
+    const audioButton = document.createElement('button');
+    audioButton.id = 'searchButton';
+    audioButton.innerHTML = '🎧 לשמוע על התכונות שלכם בהרחבה';
+
+    audioButton.addEventListener('click', () => {
+        audioButton.disabled = true;
+        audioButton.textContent = 'טוען הקלטה...';
+
+        const audioElement = document.createElement('audio');
+        const successText = document.createElement('p');
+        successText.textContent = '🎶 האזנה ערבה!';
+        
+        const audioUrl = `https://crm.clicker.co.il/download/${phoneNumber}`;
+        
+        // [דיבוב] הדפסת הכתובת המלאה לקונסול כדי לוודא שהיא נכונה
+        console.log('מנסה לטעון קובץ שמע מהכתובת:', audioUrl);
+
+        audioElement.src = audioUrl;
+        audioElement.controls = true;
+        audioElement.autoplay = true;
+
+        audioElement.addEventListener('canplaythrough', () => {
+            console.log('קובץ השמע נטען בהצלחה ומוכן להשמעה.');
+            audioPlayerContainer.innerHTML = '';
+            audioPlayerContainer.appendChild(successText);
+            audioPlayerContainer.appendChild(audioElement);
+        });
+
+        audioElement.addEventListener('error', (e) => {
+            // [דיבוב] הדפסת אובייקט השגיאה המלא לקונסול
+            console.error('אירעה שגיאה בטעינת ה-audio element:', e);
             
-            audioButton.addEventListener('click', () => {
-                audioButton.disabled = true;
-                audioButton.textContent = 'טוען הקלטה...';
-
-                const audioElement = document.createElement('audio');
-                const successText = document.createElement('p');
-                successText.textContent = '🎶 האזנה ערבה!';
+            // המשתנה error מכיל פרטים נוספים על התקלה
+            const error = audioElement.error;
+            if (error) {
+                 console.error('פרטי השגיאה:', {
+                    code: error.code,
+                    message: error.message
+                });
                 
-                audioElement.src = `https://crm.clicker.co.il/download/${phoneNumber}`;
-                audioElement.controls = true;
-                audioElement.autoplay = true;
+                let detailedErrorMessage = `אירעה שגיאה בטעינת קובץ השמע. (קוד ${error.code})`;
+                switch (error.code) {
+                    case error.MEDIA_ERR_ABORTED:
+                        detailedErrorMessage += " - הטעינה בוטלה על ידי המשתמש.";
+                        break;
+                    case error.MEDIA_ERR_NETWORK:
+                        detailedErrorMessage += " - אירעה שגיאת רשת.";
+                        break;
+                    case error.MEDIA_ERR_DECODE:
+                        detailedErrorMessage += " - אירעה שגיאה בפענוח הקובץ (יתכן שהוא פגום).";
+                        break;
+                    case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                        detailedErrorMessage += " - פורמט הקובץ אינו נתמך או שהכתובת שגויה (404 / CORS).";
+                        break;
+                    default:
+                        detailedErrorMessage += " - שגיאה לא ידועה.";
+                        break;
+                }
+                 audioPlayerContainer.innerHTML = `<p style="color: red;">${detailedErrorMessage}</p>`;
 
-                audioElement.addEventListener('canplaythrough', () => {
-                    audioPlayerContainer.innerHTML = '';
-                    audioPlayerContainer.appendChild(successText);
-                    audioPlayerContainer.appendChild(audioElement);
-                });
+            } else {
+                 audioPlayerContainer.innerHTML = '<p style="color: red;">אירעה שגיאה לא מוגדרת בטעינת קובץ השמע.</p>';
+            }
+        });
+    });
 
-                audioElement.addEventListener('error', () => {
-                    audioPlayerContainer.innerHTML = '<p style="color: red;">אירעה שגיאה בטעינת קובץ השמע.</p>';
-                });
-            });
-
-            audioPlayerContainer.appendChild(audioButton);
-        }
+    audioPlayerContainer.appendChild(audioButton);
+}
 
         async function findMyResults() {
             const query = searchInput.value.trim();
