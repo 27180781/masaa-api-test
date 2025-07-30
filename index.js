@@ -297,9 +297,21 @@ function processInsightsForProfile(profile, insights) {
 }
 function findUserResult(searchKey, searchValue) {
     const dbKey = searchKey === 'access_code' ? 'access_code' : 'id';
+    // השאילתה `SELECT *` כבר מביאה את כל העמודות, כולל אלו שאנו צריכים
     const user = db.prepare(`SELECT * FROM individual_results WHERE ${dbKey} = ?`).get(searchValue);
     if (!user) return null;
-    return { id: user.id, name: user.user_name, group_name: user.group_name, access_code: user.access_code, profile: JSON.parse(user.profile_data), game_id: user.game_id };
+
+    // [תיקון] הוספת השדות החסרים לאובייקט המוחזר
+    return { 
+        id: user.id, 
+        name: user.user_name, 
+        group_name: user.group_name, 
+        access_code: user.access_code, 
+        profile: JSON.parse(user.profile_data), 
+        game_id: user.game_id,
+        archetype_id: user.archetype_id,       //  <-- תוספת
+        archetype_score: user.archetype_score  //  <-- תוספת
+    };
 }
 
 // --- End User Result API ---

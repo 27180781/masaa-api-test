@@ -158,14 +158,23 @@
             font-family: var(--font-family);
             font-size: 1em;
             box-sizing: border-box;
+            margin-bottom: 10px;
         }
         textarea { min-height: 100px; }
         
         .grid-container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
             gap: 25px;
         }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        .error-message { color: var(--danger-color); margin-top: 10px; font-weight: 600;}
+        .result-box { margin-top: 20px; padding: 15px; background-color: #e9ecef; border-radius: 4px; border: 1px solid #ced4da; word-break: break-all; }
+        .result-box a { color: var(--primary-color); text-decoration: none; display: block; text-align: left; direction: ltr; margin-top: 8px; }
 
         /* Specific styles for logs page */
         #page-logs .log-entry { background-color: #1e1e1e; color: #d4d4d4; border-color: #333; }
@@ -201,6 +210,7 @@
             <a href="#questions" class="nav-link">❓ ניהול שאלות</a>
             <a href="#insights" class="nav-link">💡 ניהול תובנות</a>
             <a href="#results" class="nav-link">📊 דשבורד תוצאות</a>
+            <a href="#settings" class="nav-link">⚙️ הגדרות</a>
             <a href="#logs" class="nav-link">📡 לוגים בזמן אמת</a>
         </nav>
     </div>
@@ -208,47 +218,41 @@
     <main class="main-content">
         <div id="page-dashboard" class="page-view active">
             <h1>👋 ברוכים הבאים לדשבורד הראשי</h1>
-            <div class="grid-container">
-                <div class="card">
-                    <h3>סיכום מצב המשחקים</h3>
-                    <div id="dashboardSummary">טוען סיכום...</div>
-                </div>
-                 <div class="card">
-                    <h3>הגדרות Webhook</h3>
-                    <div class="setting-item" style="margin-bottom:15px;">
-                        <label for="summary_webhook_url">כתובת לסיכום משחק:</label>
-                        <input type="url" id="summary_webhook_url" placeholder="הדבק כתובת URL">
-                        <button onclick="saveSetting('summary_webhook_url')" style="margin-top: 8px;">שמור</button>
-                    </div>
-                    <div class="setting-item">
-                        <label for="participant_webhook_url">כתובת לכל משתתף:</label>
-                        <input type="url" id="participant_webhook_url" placeholder="הדבק כתובת URL">
-                        <button onclick="saveSetting('participant_webhook_url')" style="margin-top: 8px;">שמור</button>
-                    </div>
-                </div>
+            <div class="card">
+                <h3>סיכום מצב המשחקים</h3>
+                <div id="dashboardSummary">טוען סיכום...</div>
             </div>
         </div>
 
         <div id="page-games" class="page-view">
-            <h1>🎮 ניהול מאגר מזהי משחק</h1>
+            <h1>🎮 ניהול משחקים</h1>
              <div class="grid-container">
                 <div class="card">
-                    <h3>הוספת מזהים חדשים</h3>
+                    <h3>הוספת מזהים חדשים (בפעימה)</h3>
                     <form id="addGamesForm">
                         <label for="game_ids">הדבק רשימת ערכות (כל ערכה בשורה חדשה):</label>
                         <textarea id="game_ids" rows="10" placeholder="פורמט: מזהה,שם,מספר משתתפים&#10;לדוגמה:&#10;GAME123,לקוח א,50"></textarea>
-                        <br><br>
                         <button type="submit" class="success-btn">הוסף למאגר</button>
                     </form>
                 </div>
                 <div class="card">
-                    <h3>סטטוס מזהי משחק</h3>
-                    <div style="max-height: 500px; overflow-y: auto;">
-                        <table>
-                            <thead><tr><th>מזהה</th><th>שם</th><th>משתתפים</th><th>סטטוס</th><th>מייל</th><th>ת. שיוך</th><th>ת. סיום</th><th>פעולות</th></tr></thead>
-                            <tbody id="gamesTableBody"></tbody>
-                        </table>
-                    </div>
+                    <h3>יצירת קישור למשחק בודד (ידני)</h3>
+                    <label for="assign_email">הכנס כתובת אימייל:</label>
+                    <input type="email" id="assign_email" placeholder="your_email@example.com">
+                    <label for="assign_participant_count">הכנס מספר משתתפים:</label>
+                    <input type="number" id="assign_participant_count" placeholder="לדוגמה: 30">
+                    <button onclick="assignGameManually()">קבל קישור למשחק</button>
+                    <div id="assign_result" class="result-box"></div>
+                    <div id="assign_error" class="error-message"></div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>סטטוס מזהי משחק</h3>
+                <div style="max-height: 500px; overflow-y: auto;">
+                    <table>
+                        <thead><tr><th>מזהה</th><th>שם</th><th>משתתפים</th><th>סטטוס</th><th>מייל</th><th>ת. שיוך</th><th>ת. סיום</th><th>פעולות</th></tr></thead>
+                        <tbody id="gamesTableBody"></tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -327,6 +331,23 @@
             </div>
         </div>
         
+        <div id="page-settings" class="page-view">
+            <h1>⚙️ הגדרות מערכת</h1>
+            <div class="card">
+                <h3>הגדרות Webhook</h3>
+                <div class="setting-item" style="margin-bottom:15px;">
+                    <label for="summary_webhook_url">כתובת Webhook לשליחת סיכום משחק:</label>
+                    <input type="url" id="summary_webhook_url" placeholder="הדבק כתובת URL">
+                    <button onclick="saveSetting('summary_webhook_url')" style="margin-top: 8px;">שמור כתובת סיכום</button>
+                </div>
+                <div class="setting-item">
+                    <label for="participant_webhook_url">כתובת Webhook לשליחה לכל משתתף:</label>
+                    <input type="url" id="participant_webhook_url" placeholder="הדבק כתובת URL">
+                    <button onclick="saveSetting('participant_webhook_url')" style="margin-top: 8px;">שמור כתובת משתתף</button>
+                </div>
+            </div>
+        </div>
+
         <div id="page-logs" class="page-view">
             <h1>📡 קונסול לוגים בזמן אמת</h1>
              <div class="card" style="background-color: #1e1e1e;">
@@ -352,25 +373,13 @@
             
             // Trigger data fetching for the specific page
             switch(pageId) {
-                case 'page-dashboard':
-                    fetchDashboardSummary();
-                    loadSettings();
-                    break;
-                case 'page-games':
-                    fetchGames();
-                    break;
-                case 'page-questions':
-                    fetchQuestions();
-                    break;
-                case 'page-insights':
-                    loadInsights();
-                    break;
-                case 'page-results':
-                    fetchGameListForResults();
-                    break;
-                case 'page-logs':
-                    // Socket connection is established once globally
-                    break;
+                case 'page-dashboard': fetchDashboardSummary(); break;
+                case 'page-games': fetchGames(); break;
+                case 'page-questions': fetchQuestions(); break;
+                case 'page-insights': loadInsights(); break;
+                case 'page-results': fetchGameListForResults(); break;
+                case 'page-settings': loadSettings(); break;
+                case 'page-logs': break;
             }
         }
 
@@ -391,10 +400,8 @@
         // --- Page-Specific Logic ---
 
         // **********************************
-        // ** Dashboard + Settings (master_admin) **
+        // ** Dashboard (from master_admin) **
         // **********************************
-        const summaryUrlInput = document.getElementById('summary_webhook_url');
-        const participantUrlInput = document.getElementById('participant_webhook_url');
         const dashboardSummaryContainer = document.getElementById('dashboardSummary');
 
         async function fetchDashboardSummary() {
@@ -421,13 +428,16 @@
                 dashboardSummaryContainer.innerHTML = '<p>שגיאה בטעינת הנתונים.</p>';
             }
         }
-        
+
+        // **********************************
+        // ** Settings (from master_admin) **
+        // **********************************
         async function loadSettings() {
             try {
                 const response = await fetch('/api/settings');
                 const settings = await response.json();
-                summaryUrlInput.value = settings.summary_webhook_url || '';
-                participantUrlInput.value = settings.participant_webhook_url || '';
+                document.getElementById('summary_webhook_url').value = settings.summary_webhook_url || '';
+                document.getElementById('participant_webhook_url').value = settings.participant_webhook_url || '';
             } catch (e) { handleError(e, 'טעינת הגדרות'); }
         }
 
@@ -445,9 +455,9 @@
             } catch(e) { handleError(e, 'שמירת הגדרה'); }
         }
         
-        // **********************************
-        // ** Game Management (games_admin) **
-        // **********************************
+        // *****************************************************************
+        // ** Game Management (games_admin + manual assign) **
+        // *****************************************************************
         const addGamesForm = document.getElementById('addGamesForm');
         const gamesTableBody = document.getElementById('gamesTableBody');
 
@@ -513,6 +523,58 @@
                 } else { alert('שגיאה במחיקת משחק'); }
             } catch(e) { handleError(e, 'מחיקת משחק'); }
         }
+
+        window.assignGameManually = async () => {
+            const emailInput = document.getElementById('assign_email');
+            const countInput = document.getElementById('assign_participant_count');
+            const resultDiv = document.getElementById('assign_result');
+            const errorDiv = document.getElementById('assign_error');
+            
+            resultDiv.innerHTML = '';
+            errorDiv.textContent = '';
+
+            if (!emailInput.value || !countInput.value) {
+                errorDiv.textContent = 'אנא מלא את כל השדות: אימייל ומספר משתתפים.';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/games/assign', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        client_email: emailInput.value, 
+                        participant_count: parseInt(countInput.value, 10) 
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ message: 'תשובה לא תקינה מהשרת' }));
+                    throw new Error(errorData.message || `שגיאת HTTP: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.status === 'success' && data.assigned_game_id) {
+                    const gameLink = `https://game.clicker.co.il?userId=1212&game=https://app.clicker.co.il/game/web-export/${data.assigned_game_id}`;
+                    resultDiv.innerHTML = `
+                        <p><strong>הערכה שויכה בהצלחה!</strong></p>
+                        <p><strong>שם הערכה:</strong> ${data.name || 'לא צוין'}</p>
+                        <p><strong>קישור למשחק:</strong></p>
+                        <a href="${gameLink}" target="_blank">${gameLink}</a>
+                    `;
+                    emailInput.value = '';
+                    countInput.value = '';
+                    fetchGames(); // Refresh the games list
+                    fetchDashboardSummary(); // Refresh the summary
+                } else {
+                    errorDiv.textContent = 'שגיאה בקבלת המזהה: ' + (data.message || 'לא התקבל מזהה משחק.');
+                }
+            } catch (error) {
+                errorDiv.textContent = 'שגיאה בשליחת הבקשה: ' + error.message;
+            }
+        }
+
 
         // **********************************
         // ** Question Management (admin) **
