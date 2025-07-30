@@ -71,6 +71,7 @@ app.get('/results_admin', adminOnly, (req, res) => res.sendFile(path.join(__dirn
 app.get('/insights_admin', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'insights_admin.html')));
 app.get('/my-result', (req, res) => res.sendFile(path.join(__dirname, 'my_result.html')));
 app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'client_dashboard.html')));
+app.get('/unified_dashboard', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'unified_dashboard.html')));
 
 // ===================================================================
 //                      API ROUTES

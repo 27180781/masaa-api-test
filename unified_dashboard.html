@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>דשבורד ניהול מאוחד</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --success-color: #2ecc71;
+            --danger-color: #e74c3c;
+            --warning-color: #f1c40f;
+            --info-color: #569cd6;
+            --bg-color: #f4f7f9;
+            --sidebar-bg: #2c3e50;
+            --card-bg: #ffffff;
+            --text-color: #34495e;
+            --heading-color: #2c3e50;
+            --border-color: #dee2e6;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --border-radius: 8px;
+            --font-family: 'Assistant', sans-serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+        }
+
+        /* --- Sidebar --- */
+        .sidebar {
+            width: 280px;
+            background-color: var(--sidebar-bg);
+            color: white;
+            padding: 20px;
+            height: 100vh;
+            position: sticky;
+            top: 0;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        .sidebar-header {
+            text-align: center;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #34495e;
+        }
+        .sidebar-header h2 {
+            margin: 0;
+            font-weight: 700;
+        }
+        .sidebar-nav a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 20px;
+            margin-bottom: 8px;
+            text-decoration: none;
+            color: #bdc3c7;
+            border-radius: var(--border-radius);
+            font-weight: 600;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .sidebar-nav a:hover {
+            background-color: #34495e;
+            color: white;
+        }
+        .sidebar-nav a.active {
+             background-color: var(--primary-color);
+             color: white;
+             box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+        }
+
+        /* --- Main Content --- */
+        .main-content {
+            flex-grow: 1;
+            padding: 40px;
+            overflow-y: auto;
+            max-width: calc(100% - 280px);
+        }
+        .page-view {
+            display: none; /* Hidden by default */
+        }
+        .page-view.active {
+            display: block; /* Shown when active */
+        }
+
+        /* --- General Components --- */
+        h1, h2, h3 {
+            font-weight: 700;
+            color: var(--heading-color);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        h1 { border-bottom: 2px solid var(--primary-color); }
+        h2 { border-bottom: 1px solid var(--border-color); }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            margin-bottom: 25px;
+            box-shadow: var(--shadow);
+            padding: 25px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 12px 15px;
+            text-align: right;
+            vertical-align: middle;
+        }
+        th {
+            background-color: #f2f3f5;
+            font-weight: 700;
+        }
+        tbody tr:nth-child(even) { background-color: #f8f9fa; }
+        
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            font-family: var(--font-family);
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        button:hover {
+            background-color: #2980b9;
+            transform: translateY(-1px);
+        }
+        button.delete-btn { background-color: var(--danger-color); }
+        button.delete-btn:hover { background-color: #c0392b; }
+        button.success-btn { background-color: var(--success-color); }
+        button.success-btn:hover { background-color: #27ae60; }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-family: var(--font-family);
+            font-size: 1em;
+            box-sizing: border-box;
+        }
+        textarea { min-height: 100px; }
+        
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+        }
+
+        /* Specific styles for logs page */
+        #page-logs .log-entry { background-color: #1e1e1e; color: #d4d4d4; border-color: #333; }
+        #page-logs .log-meta { color: #4ec9b0; }
+        #page-logs .log-data { color: #9cdcfe; background-color: #252526; padding: 10px; border-radius: 5px; white-space: pre-wrap; }
+
+        /* Specific styles for results page */
+        #results-container { display: flex; gap: 20px; }
+        #results-sidebar { flex: 0 0 320px; }
+        #results-details { flex-grow: 1; }
+        .game-list { list-style: none; padding: 0; margin: 0; max-height: 70vh; overflow-y: auto; }
+        .game-item { border: 1px solid var(--border-color); border-radius: var(--border-radius); margin-bottom: 12px; padding: 15px; cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s; }
+        .game-item.active, .game-item:hover { border-color: var(--primary-color); box-shadow: 0 4px 12px rgba(0, 123, 255, 0.15); }
+        .score-badge { display: inline-block; padding: 4px 10px; border-radius: 15px; color: white; font-size: 0.85em; font-weight: 700; }
+        .score-good { background-color: #28a745; }
+        .score-medium { background-color: #ffc107; color: #212529; }
+        .score-bad { background-color: #dc3545; }
+
+        /* Question list styles */
+        .question-item { display: flex; align-items: center; background-color: var(--white); border-radius: var(--border-radius); margin-bottom: 15px; padding: 20px; cursor: move; box-shadow: var(--shadow); }
+        .drag-handle { margin-left: 15px; color: #bdc3c7; cursor: grab; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2>ניהול המערכת</h2>
+            <p style="color: #bdc3c7; font-weight: 300;">מסע אל תוך עצמי</p>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="#dashboard" class="nav-link active">🏠 דשבורד ראשי</a>
+            <a href="#games" class="nav-link">🎮 ניהול משחקים</a>
+            <a href="#questions" class="nav-link">❓ ניהול שאלות</a>
+            <a href="#insights" class="nav-link">💡 ניהול תובנות</a>
+            <a href="#results" class="nav-link">📊 דשבורד תוצאות</a>
+            <a href="#logs" class="nav-link">📡 לוגים בזמן אמת</a>
+        </nav>
+    </div>
+
+    <main class="main-content">
+        <div id="page-dashboard" class="page-view active">
+            <h1>👋 ברוכים הבאים לדשבורד הראשי</h1>
+            <div class="grid-container">
+                <div class="card">
+                    <h3>סיכום מצב המשחקים</h3>
+                    <div id="dashboardSummary">טוען סיכום...</div>
+                </div>
+                 <div class="card">
+                    <h3>הגדרות Webhook</h3>
+                    <div class="setting-item" style="margin-bottom:15px;">
+                        <label for="summary_webhook_url">כתובת לסיכום משחק:</label>
+                        <input type="url" id="summary_webhook_url" placeholder="הדבק כתובת URL">
+                        <button onclick="saveSetting('summary_webhook_url')" style="margin-top: 8px;">שמור</button>
+                    </div>
+                    <div class="setting-item">
+                        <label for="participant_webhook_url">כתובת לכל משתתף:</label>
+                        <input type="url" id="participant_webhook_url" placeholder="הדבק כתובת URL">
+                        <button onclick="saveSetting('participant_webhook_url')" style="margin-top: 8px;">שמור</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="page-games" class="page-view">
+            <h1>🎮 ניהול מאגר מזהי משחק</h1>
+             <div class="grid-container">
+                <div class="card">
+                    <h3>הוספת מזהים חדשים</h3>
+                    <form id="addGamesForm">
+                        <label for="game_ids">הדבק רשימת ערכות (כל ערכה בשורה חדשה):</label>
+                        <textarea id="game_ids" rows="10" placeholder="פורמט: מזהה,שם,מספר משתתפים&#10;לדוגמה:&#10;GAME123,לקוח א,50"></textarea>
+                        <br><br>
+                        <button type="submit" class="success-btn">הוסף למאגר</button>
+                    </form>
+                </div>
+                <div class="card">
+                    <h3>סטטוס מזהי משחק</h3>
+                    <div style="max-height: 500px; overflow-y: auto;">
+                        <table>
+                            <thead><tr><th>מזהה</th><th>שם</th><th>משתתפים</th><th>סטטוס</th><th>מייל</th><th>ת. שיוך</th><th>ת. סיום</th><th>פעולות</th></tr></thead>
+                            <tbody id="gamesTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="page-questions" class="page-view">
+            <h1>❓ ניהול שאלות</h1>
+            <div class="grid-container">
+                 <div class="card">
+                    <h3>רשימת שאלות</h3>
+                     <ul id="questionsList" style="list-style:none; padding:0;"></ul>
+                 </div>
+                 <div class="card">
+                     <h3>הוספת שאלה חדשה</h3>
+                     <form id="addQuestionForm">
+                         <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div style="grid-column: 1 / -1;">
+                                <label for="question_text">נוסח השאלה:</label>
+                                <input type="text" id="question_text" name="question_text" required>
+                            </div>
+                            <div><label for="ans1">תשובה 1:</label><select id="ans1" name="ans1"><option value="fire">🔥 אש</option><option value="water">💧 מים</option><option value="air">💨 רוח</option><option value="earth">🌍 עפר</option></select></div>
+                            <div><label for="ans2">תשובה 2:</label><select id="ans2" name="ans2"><option value="fire">🔥 אש</option><option value="water" selected>💧 מים</option><option value="air">💨 רוח</option><option value="earth">🌍 עפר</option></select></div>
+                            <div><label for="ans3">תשובה 3:</label><select id="ans3" name="ans3"><option value="fire">🔥 אש</option><option value="water">💧 מים</option><option value="air" selected>💨 רוח</option><option value="earth">🌍 עפר</option></select></div>
+                            <div><label for="ans4">תשובה 4:</label><select id="ans4" name="ans4"><option value="fire">🔥 אש</option><option value="water">💧 מים</option><option value="air">💨 רוח</option><option value="earth" selected>🌍 עפר</option></select></div>
+                             <div style="grid-column: 1 / -1; display:flex; align-items: end; gap: 10px;">
+                                <div style="flex-grow: 1;">
+                                 <label for="question_number">מזהה שאלה:</label>
+                                 <input type="number" id="question_number" name="question_number" placeholder="יקבע אוטומטית אם ריק" >
+                                </div>
+                                <button type="submit" class="success-btn">הוסף שאלה ✨</button>
+                             </div>
+                         </div>
+                     </form>
+                 </div>
+            </div>
+        </div>
+        
+        <div id="page-insights" class="page-view">
+            <h1>💡 ניהול תובנות ותוצאות</h1>
+            <div class="card">
+                <div class="grid-container">
+                    <div>
+                        <h3>תובנות על יסוד דומיננטי</h3>
+                        <label>אש:</label> <textarea id="dominant_fire"></textarea>
+                        <label>מים:</label> <textarea id="dominant_water"></textarea>
+                    </div>
+                     <div>
+                        <h3>&nbsp;</h3>
+                        <label>אוויר:</label> <textarea id="dominant_air"></textarea>
+                        <label>אדמה:</label> <textarea id="dominant_earth"></textarea>
+                     </div>
+                </div>
+            </div>
+            <div class="card">
+                 <h3>תובנות כלליות (לפי אחוזים)</h3>
+                 <p>הגדר תובנות לכל יסוד לפי אחוז מינימלי. המערכת תציג את התובנה מהסף הגבוה ביותר שהמשתמש עבר.</p>
+                 <div class="grid-container">
+                    <div><h4>אש (Fire)</h4><div id="general_insights_fire"></div><button type="button" class="add-rule-btn" data-element="fire">הוסף חוק לאש</button></div>
+                    <div><h4>מים (Water)</h4><div id="general_insights_water"></div><button type="button" class="add-rule-btn" data-element="water">הוסף חוק למים</button></div>
+                    <div><h4>אוויר (Air)</h4><div id="general_insights_air"></div><button type="button" class="add-rule-btn" data-element="air">הוסף חוק לאוויר</button></div>
+                    <div><h4>אדמה (Earth)</h4><div id="general_insights_earth"></div><button type="button" class="add-rule-btn" data-element="earth">הוסף חוק לאדמה</button></div>
+                 </div>
+            </div>
+             <button id="saveInsightsButton" class="success-btn" style="width:100%; padding: 15px; font-size: 18px;">שמור את כל שינויי התובנות</button>
+        </div>
+        
+        <div id="page-results" class="page-view">
+            <h1>📊 דשבורד תוצאות</h1>
+            <div id="results-container">
+                <div id="results-sidebar" class="card">
+                    <h3>משחקים שמורים</h3>
+                    <ul id="gamesListResults" class="game-list"></ul>
+                </div>
+                <div id="results-details" class="card">
+                     <h2>בחר משחק להצגת פרטים</h2>
+                </div>
+            </div>
+        </div>
+        
+        <div id="page-logs" class="page-view">
+            <h1>📡 קונסול לוגים בזמן אמת</h1>
+             <div class="card" style="background-color: #1e1e1e;">
+                <div id="logs-container" style="max-height: 70vh; overflow-y: auto; display: flex; flex-direction: column-reverse;"></div>
+             </div>
+        </div>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // --- Navigation Logic ---
+        const navLinks = document.querySelectorAll('.nav-link');
+        const pageViews = document.querySelectorAll('.page-view');
+
+        function showPage(pageId) {
+            pageViews.forEach(page => page.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+
+            navLinks.forEach(link => {
+                link.classList.toggle('active', link.getAttribute('href') === '#' + pageId.replace('page-', ''));
+            });
+            
+            // Trigger data fetching for the specific page
+            switch(pageId) {
+                case 'page-dashboard':
+                    fetchDashboardSummary();
+                    loadSettings();
+                    break;
+                case 'page-games':
+                    fetchGames();
+                    break;
+                case 'page-questions':
+                    fetchQuestions();
+                    break;
+                case 'page-insights':
+                    loadInsights();
+                    break;
+                case 'page-results':
+                    fetchGameListForResults();
+                    break;
+                case 'page-logs':
+                    // Socket connection is established once globally
+                    break;
+            }
+        }
+
+        navLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const pageId = 'page-' + e.currentTarget.getAttribute('href').substring(1);
+                showPage(pageId);
+            });
+        });
+        
+        // --- Global Error Handler ---
+        function handleError(error, context) {
+            console.error(`Error in ${context}:`, error);
+            alert(`שגיאה בביצוע הפעולה: ${context}. בדוק את הקונסול לפרטים.`);
+        }
+        
+        // --- Page-Specific Logic ---
+
+        // **********************************
+        // ** Dashboard + Settings (master_admin) **
+        // **********************************
+        const summaryUrlInput = document.getElementById('summary_webhook_url');
+        const participantUrlInput = document.getElementById('participant_webhook_url');
+        const dashboardSummaryContainer = document.getElementById('dashboardSummary');
+
+        async function fetchDashboardSummary() {
+            try {
+                const response = await fetch('/api/games/summary');
+                const summary = await response.json();
+                
+                dashboardSummaryContainer.innerHTML = '';
+                if (Object.keys(summary).length === 0) {
+                    dashboardSummaryContainer.innerHTML = '<p>לא נמצאו משחקים.</p>';
+                    return;
+                }
+
+                dashboardSummaryContainer.innerHTML = Object.entries(summary).map(([count, data]) => `
+                    <p style="border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px;">
+                        <strong>מאגר ל-${count} משתתפים:</strong> סה"כ ${data.total}.<br>
+                        <span style="color: var(--success-color);">✅ פנויים: ${data.available || 0}</span> | 
+                        <span style="color: var(--warning-color);">🟡 בשימוש: ${data.assigned || 0}</span> | 
+                        <span style="color: var(--primary-color);">🔵 הסתיימו: ${data.completed || 0}</span>
+                    </p>
+                `).join('');
+            } catch (error) {
+                handleError(error, 'טעינת סיכום דשבורד');
+                dashboardSummaryContainer.innerHTML = '<p>שגיאה בטעינת הנתונים.</p>';
+            }
+        }
+        
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                const settings = await response.json();
+                summaryUrlInput.value = settings.summary_webhook_url || '';
+                participantUrlInput.value = settings.participant_webhook_url || '';
+            } catch (e) { handleError(e, 'טעינת הגדרות'); }
+        }
+
+        window.saveSetting = async (key) => {
+            const value = document.getElementById(key).value;
+            const encodedValue = btoa(value); // Encode value
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ [key]: encodedValue })
+                });
+                if (response.ok) alert('ההגדרה נשמרה!');
+                else alert('שגיאה בשמירת ההגדרה.');
+            } catch(e) { handleError(e, 'שמירת הגדרה'); }
+        }
+        
+        // **********************************
+        // ** Game Management (games_admin) **
+        // **********************************
+        const addGamesForm = document.getElementById('addGamesForm');
+        const gamesTableBody = document.getElementById('gamesTableBody');
+
+        async function fetchGames() {
+            try {
+                const response = await fetch('/api/games');
+                const games = await response.json();
+                gamesTableBody.innerHTML = '';
+                games.forEach(game => {
+                    const statusMap = {
+                        available: '<span style="color: var(--success-color);">✅ פנוי</span>',
+                        assigned: '<span style="color: var(--warning-color);">🟡 משויך</span>',
+                        completed: '<span style="color: var(--primary-color);">🔵 הסתיים</span>'
+                    };
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><strong>${game.game_id}</strong></td>
+                        <td>${game.name || '-'}</td>
+                        <td>${game.participant_count || '-'}</td>
+                        <td>${statusMap[game.status] || game.status}</td>
+                        <td>${game.client_email || '-'}</td>
+                        <td>${game.assigned_at ? new Date(game.assigned_at).toLocaleDateString('he-IL') : '-'}</td>
+                        <td>${game.completed_at ? new Date(game.completed_at).toLocaleDateString('he-IL') : '-'}</td>
+                        <td><button class="delete-btn" onclick="deleteGame('${game.game_id}')">מחק</button></td>
+                    `;
+                    gamesTableBody.appendChild(row);
+                });
+            } catch (error) { handleError(error, 'טעינת רשימת משחקים'); }
+        }
+
+        addGamesForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const games_data = document.getElementById('game_ids').value.split('\n')
+                .filter(line => line.trim() !== '')
+                .map(line => {
+                    const [game_id, name, participant_count] = line.split(',');
+                    return { game_id: game_id?.trim(), name: name?.trim(), participant_count: parseInt(participant_count?.trim(), 10) };
+                }).filter(g => g.game_id && g.name && !isNaN(g.participant_count));
+
+            if (games_data.length === 0) return alert('נא להזין נתונים בפורמט הנכון.');
+
+            try {
+                const res = await fetch('/api/games/bulk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ games_data })
+                });
+                if (res.ok) {
+                    document.getElementById('game_ids').value = '';
+                    fetchGames();
+                    fetchDashboardSummary();
+                } else { alert('שגיאה בהוספת משחקים'); }
+            } catch (error) { handleError(error, 'הוספת משחקים'); }
+        });
+
+        window.deleteGame = async (gameId) => {
+            if (!confirm(`האם למחוק את המשחק ${gameId}?`)) return;
+            try {
+                const res = await fetch(`/api/games/${gameId}`, { method: 'DELETE' });
+                if (res.ok) {
+                    fetchGames();
+                    fetchDashboardSummary();
+                } else { alert('שגיאה במחיקת משחק'); }
+            } catch(e) { handleError(e, 'מחיקת משחק'); }
+        }
+
+        // **********************************
+        // ** Question Management (admin) **
+        // **********************************
+        const questionsList = document.getElementById('questionsList');
+        const addQuestionForm = document.getElementById('addQuestionForm');
+        const questionNumberInput = document.getElementById('question_number');
+        
+        function getElementEmoji(element) {
+            const emojis = { fire: '🔥', water: '💧', air: '💨', earth: '🌍' };
+            return emojis[element] || '';
+        }
+
+        async function fetchQuestions() {
+            try {
+                const response = await fetch('/api/questions');
+                const questions = await response.json();
+                questionsList.innerHTML = '';
+                let maxId = 0;
+                questions.forEach(q => {
+                    const currentId = parseInt(q.question_id.replace('q', ''), 10);
+                    if (!isNaN(currentId) && currentId > maxId) maxId = currentId;
+                    const li = document.createElement('li');
+                    li.className = 'question-item';
+                    li.innerHTML = `
+                        <span class="drag-handle">☰</span>
+                        <div style="flex-grow: 1;">
+                            <strong>${q.question_id}:</strong> ${q.question_text}<br>
+                            <small>${Object.entries(q.answers_mapping).map(([k,v]) => `${k}: ${getElementEmoji(v)}`).join(', ')}</small>
+                        </div>
+                        <button class="delete-btn" onclick="deleteQuestion('${q.question_id}')">🗑️</button>
+                    `;
+                    questionsList.appendChild(li);
+                });
+                questionNumberInput.placeholder = `הבא בתור: ${maxId + 1}`;
+            } catch (error) { handleError(error, 'טעינת שאלות'); }
+        }
+
+        window.deleteQuestion = async (questionId) => {
+            if (!confirm(`למחוק את שאלה ${questionId}?`)) return;
+            try {
+                await fetch(`/api/questions/${questionId}`, { method: 'DELETE' });
+                fetchQuestions();
+            } catch (error) { handleError(error, 'מחיקת שאלה'); }
+        }
+
+        addQuestionForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(addQuestionForm);
+            const questionIdNum = formData.get('question_number');
+            const newQuestion = {
+                question_id: 'q' + questionIdNum,
+                question_text: formData.get('question_text'),
+                answers_mapping: { '1': formData.get('ans1'), '2': formData.get('ans2'), '3': formData.get('ans3'), '4': formData.get('ans4')}
+            };
+            if (!questionIdNum) { // Auto-assign ID if empty
+                 const response = await fetch('/api/questions');
+                 const questions = await response.json();
+                 const maxId = questions.reduce((max, q) => Math.max(max, parseInt(q.question_id.replace('q',''),10)), 0);
+                 newQuestion.question_id = 'q' + (maxId + 1);
+            }
+            try {
+                const res = await fetch('/api/questions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newQuestion)
+                });
+                if (res.ok) {
+                    addQuestionForm.reset();
+                    questionNumberInput.value = '';
+                    fetchQuestions();
+                } else {
+                    const errorData = await res.json();
+                    alert(`שגיאה: ${errorData.message || 'פרטים לא תקינים'}`);
+                }
+            } catch (error) { handleError(error, 'הוספת שאלה'); }
+        });
+        
+        // **********************************
+        // ** Insights Management (insights_admin) **
+        // **********************************
+        const elements = ['fire', 'water', 'air', 'earth'];
+        
+        function createRuleElement(rule = { min_percent: 10, text: '' }) {
+            const ruleDiv = document.createElement('div');
+            ruleDiv.style.display = 'flex';
+            ruleDiv.style.gap = '10px';
+            ruleDiv.style.marginBottom = '10px';
+            ruleDiv.innerHTML = `
+                <input type="number" value="${rule.min_percent}" style="width: 70px;" placeholder="%">
+                <input type="text" value="${rule.text}" placeholder="טקסט תובנה">
+                <button type="button" class="delete-btn">מחק</button>
+            `;
+            ruleDiv.querySelector('.delete-btn').onclick = () => ruleDiv.remove();
+            return ruleDiv;
+        }
+
+        async function loadInsights() {
+            try {
+                const response = await fetch('/api/insights');
+                const data = await response.json();
+                elements.forEach(el => {
+                    document.getElementById(`dominant_${el}`).value = data.dominant_insights?.[el] || '';
+                    const container = document.getElementById(`general_insights_${el}`);
+                    container.innerHTML = '';
+                    const rules = data.general_insights?.[el]?.sort((a,b) => b.min_percent - a.min_percent) || [];
+                    rules.forEach(rule => container.appendChild(createRuleElement(rule)));
+                });
+            } catch (error) { handleError(error, 'טעינת תובנות'); }
+        }
+        
+        document.querySelectorAll('.add-rule-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const element = e.target.dataset.element;
+                document.getElementById(`general_insights_${element}`).appendChild(createRuleElement());
+            });
+        });
+
+        document.getElementById('saveInsightsButton').addEventListener('click', async () => {
+            const updatedData = { dominant_insights: {}, general_insights: { fire: [], water: [], air: [], earth: [] } };
+            elements.forEach(el => {
+                updatedData.dominant_insights[el] = document.getElementById(`dominant_${el}`).value;
+                document.querySelectorAll(`#general_insights_${el} > div`).forEach(ruleEl => {
+                    const min_percent = parseInt(ruleEl.querySelector('input[type="number"]').value, 10);
+                    const text = ruleEl.querySelector('input[type="text"]').value;
+                    if (text) updatedData.general_insights[el].push({ min_percent, text });
+                });
+            });
+            try {
+                const response = await fetch('/api/insights', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updatedData)
+                });
+                if (response.ok) alert('התובנות נשמרו בהצלחה!');
+                else alert('שגיאה בשמירת התובנות.');
+            } catch (error) { handleError(error, 'שמירת תובנות'); }
+        });
+
+        // **********************************
+        // ** Results Dashboard (results_admin) **
+        // **********************************
+        const gamesListResults = document.getElementById('gamesListResults');
+        const resultsDetails = document.getElementById('results-details');
+
+        function getScoreColor(score) {
+            if (score === null || typeof score === 'undefined') return '';
+            if (score <= 30) return 'score-good';
+            if (score <= 70) return 'score-medium';
+            return 'score-bad';
+        }
+
+        function createProfileBars(profile) {
+            if (!profile) return '';
+            const sortedProfile = Object.entries(profile).sort(([,a],[,b]) => b-a);
+            return sortedProfile.map(([element, value]) => {
+                const color = {fire: '#e74c3c', water: '#3498db', air: '#f1c40f', earth: '#2ecc71'}[element] || '#ccc';
+                return `
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom: 4px; font-size: 0.9em;">
+                    <span style="width: 50px; font-weight: 600;">${element}</span>
+                    <div style="flex-grow:1; background-color: #e9ecef; border-radius: 5px; height: 8px;">
+                        <div style="width: ${value.toFixed(0)}%; background-color: ${color}; height: 100%; border-radius: 5px;"></div>
+                    </div>
+                    <span style="width: 40px; text-align:right;">${value.toFixed(1)}%</span>
+                </div>`;
+            }).join('');
+        }
+
+        async function fetchGameDetails(gameId) {
+            try {
+                document.querySelectorAll('#gamesListResults .game-item').forEach(item => item.classList.remove('active'));
+                document.querySelector(`[data-game-id="${gameId}"]`).classList.add('active');
+                resultsDetails.innerHTML = '<p>טוען נתונים...</p>';
+
+                const resultsRes = await fetch(`/api/results/${gameId}`);
+                const details = await resultsRes.json();
+                
+                let html = `<h2>פרטי משחק: ${details.game_id}</h2>`;
+                if (details.game_average_profile) {
+                    html += `<h3>ממוצע כלל המשתתפים</h3>${createProfileBars(details.game_average_profile)}`;
+                }
+                if (details.group_results && Object.keys(details.group_results).length > 0) {
+                    html += `<h3>תוצאות קבוצתיות</h3><table><thead><tr><th>קבוצה</th><th>משתתפים</th><th>פרופיל ממוצע</th></tr></thead><tbody>`;
+                    for (const [groupName, data] of Object.entries(details.group_results)) {
+                        html += `<tr><td>${groupName}</td><td>${data.participant_count}</td><td>${createProfileBars(data.profile)}</td></tr>`;
+                    }
+                    html += '</tbody></table>';
+                }
+                html += `<h3>תוצאות אישיות</h3><table><thead><tr><th>שם/קבוצה</th><th>קוד</th><th>פרופיל</th><th>ID</th><th>התאמה</th></tr></thead><tbody>`;
+                (details.individual_results || []).forEach(p => {
+                    const score = p.archetype_score;
+                    const scoreDisplay = score !== null ? parseFloat(score).toFixed(1) : 'N/A';
+                    html += `<tr>
+                        <td><strong>${p.name}</strong><br><small>${p.group_name || ''}</small></td>
+                        <td><strong>${p.access_code}</strong></td>
+                        <td>${createProfileBars(p.profile)}</td>
+                        <td style="text-align:center;">${p.archetype_id || 'N/A'}</td>
+                        <td style="text-align:center;"><span class="score-badge ${getScoreColor(score)}">${scoreDisplay}</span></td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                resultsDetails.innerHTML = html;
+            } catch (error) {
+                handleError(error, `טעינת פרטי משחק ${gameId}`);
+                resultsDetails.innerHTML = `<p>שגיאה בטעינת פרטי המשחק.</p>`;
+            }
+        }
+
+        async function fetchGameListForResults() {
+            try {
+                const response = await fetch('/api/results');
+                const games = await response.json();
+                gamesListResults.innerHTML = '';
+                games.forEach(game => {
+                    const li = document.createElement('li');
+                    li.className = 'game-item';
+                    li.dataset.gameId = game.game_id;
+                    const score = game.average_archetype_score;
+                    const scoreDisplay = score !== null ? parseFloat(score).toFixed(1) : 'N/A';
+                    li.innerHTML = `
+                        <strong>מזהה:</strong> ${game.game_id}<br>
+                        <small>${game.client_email || 'לא צוין'}</small><br>
+                        <small>סטיית התאמה: <span class="score-badge ${getScoreColor(score)}">${scoreDisplay}</span></small>`;
+                    li.addEventListener('click', () => fetchGameDetails(game.game_id));
+                    gamesListResults.appendChild(li);
+                });
+            } catch (error) { handleError(error, 'טעינת רשימת משחקים לתוצאות'); }
+        }
+
+        // **********************************
+        // ** Live Logs (logs.html) **
+        // **********************************
+        const logsContainer = document.getElementById('logs-container');
+        const socket = io();
+
+        function addLogEntryToPage(log) {
+            const entryDiv = document.createElement('div');
+            entryDiv.className = 'log-entry';
+            entryDiv.innerHTML = `
+                <div class="log-meta">
+                    <span>${new Date(log.timestamp).toLocaleString('he-IL')}</span> | <span>סוג: ${log.type}</span>
+                </div>
+                <pre class="log-data">${JSON.stringify(log.data, null, 2)}</pre>`;
+            logsContainer.prepend(entryDiv);
+        }
+
+        socket.on('log_history', (history) => {
+            logsContainer.innerHTML = '';
+            history.slice().reverse().forEach(addLogEntryToPage);
+        });
+
+        socket.on('new_log', (logEntry) => {
+            addLogEntryToPage(logEntry);
+        });
+
+        socket.on('connect', () => console.log('Socket.IO Connected!'));
+
+        // --- Initial Load ---
+        showPage('page-dashboard');
+    });
+    </script>
+</body>
+</html>
