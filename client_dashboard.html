@@ -134,7 +134,7 @@
 <body>
     <div class="container">
         <div id="gameData">
-            <div id="loader">
+            <div id="loader" class="card">
                 <h1>טוען נתונים, אנא המתן...</h1>
             </div>
         </div>
@@ -147,8 +147,8 @@
         const elementNames = {
             fire: 'אש',
             water: 'מים',
-            air: 'רוח',
-            earth: 'עפר'
+            air: 'אוויר',
+            earth: 'אדמה'
         };
 
         function createProfileBars(profile) {
@@ -156,10 +156,10 @@
             for (const [element, value] of Object.entries(profile)) {
                 const displayName = elementNames[element] || element;
                 const color = {
-                    fire: '#ff6b6b', // אדום אש
-                    water: '#4dabf7', // כחול מים
-                    air: '#fcc419',   // צהוב רוח
-                    earth: '#69db7c'  // ירוק אדמה
+                    fire: '#ff6b6b',   // אדום אש
+                    water: '#4dabf7',  // כחול מים
+                    air: '#fcc419',    // צהוב אוויר
+                    earth: '#69db7c'   // ירוק אדמה
                 }[element] || '#ced4da';
                 
                 barsHtml += `
@@ -177,35 +177,19 @@
 
         async function fetchAndDisplayResults() {
             try {
-                const gameId = window.location.pathname.split('/').pop() || 'example-game'; // מזהה לדוגמה אם אין בכתובת
+                // לקיחת מזהה המשחק מכתובת ה-URL
+                const gameId = window.location.pathname.split('/').pop();
                 if (!gameId) {
                     gameDataContainer.innerHTML = '<div class="card"><h1>שגיאה: לא נמצא מזהה משחק בכתובת.</h1></div>';
                     return;
                 }
+                
+                // קריאה ל-API אמיתי כדי לקבל נתוני משחק
+                const response = await fetch(`/api/results/${gameId}`);
+                if (!response.ok) throw new Error('Game not found or server error');
+                const details = await response.json();
 
-                // הערה: ה-API הוא דוגמה בלבד. יש להחליף בכתובת ה-API האמיתית שלך.
-                // const response = await fetch(`/api/results/${gameId}`);
-                // if (!response.ok) throw new Error('Game not found or server error');
-                // const details = await response.json();
-
-                // --- שימוש בנתוני דמה לצורך הדגמה ---
-                const details = {
-                    game_id: gameId,
-                    game_average_profile: { fire: 30.5, water: 25.1, air: 20.9, earth: 23.5 },
-                    group_results: {
-                        'אלפא': { participant_count: 5, profile: { fire: 45.2, water: 15.8, air: 22.0, earth: 17.0 } },
-                        'בטא': { participant_count: 4, profile: { fire: 20.1, water: 40.5, air: 18.3, earth: 21.1 } },
-                        'גמא': { participant_count: 6, profile: { fire: 28.9, water: 22.1, air: 25.7, earth: 23.3 } }
-                    },
-                    individual_results: [
-                        { name: 'דניאל כהן', group_name: 'אלפא', access_code: 'AB12CD', profile: { fire: 55, water: 10, air: 15, earth: 20 } },
-                        { name: 'יעל לוי', group_name: 'בטא', access_code: 'EF34GH', profile: { fire: 15, water: 50, air: 25, earth: 10 } },
-                        { name: 'אורי שחר', group_name: 'אלפא', access_code: 'IJ56KL', profile: { fire: 40, water: 20, air: 25, earth: 15 } },
-                        { name: 'תמר ישראלי', group_name: 'גמא', access_code: 'MN78OP', profile: { fire: 30, water: 25, air: 20, earth: 25 } }
-                    ]
-                };
-                // --- סוף נתוני דמה ---
-
+                // בניית התוכן הדינמי
                 let generalAverageHtml = '';
                 if (details.game_average_profile) {
                     generalAverageHtml = `
@@ -234,7 +218,7 @@
                     individualHtml += '</tbody></table></div>';
                 }
 
-               gameDataContainer.innerHTML = `<h1>סיכום תוצאות למשחק: ${details.game_id}</h1>` + generalAverageHtml + groupHtml + individualHtml;
+                gameDataContainer.innerHTML = `<h1>סיכום תוצאות למשחק: ${details.game_id}</h1>` + generalAverageHtml + groupHtml + individualHtml;
 
             } catch (error) {
                 console.error('Error fetching game details:', error);
