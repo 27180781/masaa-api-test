@@ -250,12 +250,12 @@
             air: 'rgba(241, 196, 15, 0.85)',
             earth: 'rgba(46, 204, 113, 0.85)'
         };
-        let profileChart = null; // To hold the chart instance
+        let profileChart = null;
 
         // --- Functions ---
         function createProfileChart(profile) {
             if (profileChart) {
-                profileChart.destroy(); // Destroy previous chart if exists
+                profileChart.destroy();
             }
             const labels = Object.keys(profile).map(key => hebrewMap[key]);
             const data = Object.values(profile);
@@ -272,7 +272,7 @@
                         backgroundColor: colors,
                         borderColor: '#ffffff',
                         borderWidth: 3,
-                        hoverOffset: 25 // Enhanced hover effect for 3D feel
+                        hoverOffset: 25
                     }]
                 },
                 options: {
@@ -325,77 +325,47 @@
             insightsContainer.innerHTML = html;
         }
 
-function setupAudioPlayer(phoneNumber) {
-    audioPlayerContainer.innerHTML = ''; // Clear previous content
-    const audioButton = document.createElement('button');
-    audioButton.id = 'searchButton';
-    audioButton.innerHTML = '🎧 לשמוע על התכונות שלכם בהרחבה';
-
-    audioButton.addEventListener('click', () => {
-        audioButton.disabled = true;
-        audioButton.textContent = 'טוען הקלטה...';
-
-        const audioElement = document.createElement('audio');
-        const successText = document.createElement('p');
-        successText.textContent = '🎶 האזנה ערבה!';
-        
-        const audioUrl = `https://crm.clicker.co.il/download/${phoneNumber}`;
-        
-        // [דיבוב] הדפסת הכתובת המלאה לקונסול כדי לוודא שהיא נכונה
-        console.log('מנסה לטעון קובץ שמע מהכתובת:', audioUrl);
-
-        audioElement.src = audioUrl;
-        audioElement.controls = true;
-        audioElement.autoplay = true;
-
-        audioElement.addEventListener('canplaythrough', () => {
-            console.log('קובץ השמע נטען בהצלחה ומוכן להשמעה.');
+        // --- UPDATED AUDIO PLAYER FUNCTION ---
+        function setupAudioPlayer(uniqueId) {
             audioPlayerContainer.innerHTML = '';
-            audioPlayerContainer.appendChild(successText);
-            audioPlayerContainer.appendChild(audioElement);
-        });
+            const audioButton = document.createElement('button');
+            audioButton.id = 'searchButton';
+            audioButton.innerHTML = '🎧 לשמוע על התכונות שלכם בהרחבה';
 
-        audioElement.addEventListener('error', (e) => {
-            // [דיבוב] הדפסת אובייקט השגיאה המלא לקונסול
-            console.error('אירעה שגיאה בטעינת ה-audio element:', e);
-            
-            // המשתנה error מכיל פרטים נוספים על התקלה
-            const error = audioElement.error;
-            if (error) {
-                 console.error('פרטי השגיאה:', {
-                    code: error.code,
-                    message: error.message
-                });
+            audioButton.addEventListener('click', () => {
+                audioButton.disabled = true;
+                audioButton.textContent = 'טוען הקלטה...';
+
+                //  !!!   חשוב מאוד: החלף את הכתובת הבאה בכתובת של השרת שלך ב-CapRover   !!!
+                const yourProxyServerUrl = 'https://crm.clicker.co.il/'; 
                 
-                let detailedErrorMessage = `אירעה שגיאה בטעינת קובץ השמע. (קוד ${error.code})`;
-                switch (error.code) {
-                    case error.MEDIA_ERR_ABORTED:
-                        detailedErrorMessage += " - הטעינה בוטלה על ידי המשתמש.";
-                        break;
-                    case error.MEDIA_ERR_NETWORK:
-                        detailedErrorMessage += " - אירעה שגיאת רשת.";
-                        break;
-                    case error.MEDIA_ERR_DECODE:
-                        detailedErrorMessage += " - אירעה שגיאה בפענוח הקובץ (יתכן שהוא פגום).";
-                        break;
-                    case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
-                        detailedErrorMessage += " - פורמט הקובץ אינו נתמך או שהכתובת שגויה (404 / CORS).";
-                        break;
-                    default:
-                        detailedErrorMessage += " - שגיאה לא ידועה.";
-                        break;
-                }
-                 audioPlayerContainer.innerHTML = `<p style="color: red;">${detailedErrorMessage}</p>`;
+                const audioUrl = `${yourProxyServerUrl}/download/${uniqueId}`;
+                console.log('מנסה לטעון קובץ שמע דרך שרת הפרוקסי:', audioUrl);
 
-            } else {
-                 audioPlayerContainer.innerHTML = '<p style="color: red;">אירעה שגיאה לא מוגדרת בטעינת קובץ השמע.</p>';
-            }
-        });
-    });
+                const audioElement = document.createElement('audio');
+                audioElement.src = audioUrl;
+                audioElement.controls = true;
+                audioElement.autoplay = true;
+                
+                audioElement.addEventListener('canplaythrough', () => {
+                    const successText = document.createElement('p');
+                    successText.textContent = '🎶 האזנה ערבה!';
+                    audioPlayerContainer.innerHTML = '';
+                    audioPlayerContainer.appendChild(successText);
+                    audioPlayerContainer.appendChild(audioElement);
+                });
 
-    audioPlayerContainer.appendChild(audioButton);
-}
+                audioElement.addEventListener('error', (e) => {
+                    console.error('שגיאה בטעינת קובץ השמע מהשרת שלך:', e);
+                    const errorMsg = 'אירעה שגיאה בטעינת קובץ השמע. ודא שהשרת פועל ושה-ID תקין.';
+                    audioPlayerContainer.innerHTML = `<p style="color: red;">${errorMsg}</p>`;
+                });
+            });
 
+            audioPlayerContainer.appendChild(audioButton);
+        }
+
+        // --- UPDATED MAIN FUNCTION ---
         async function findMyResults() {
             const query = searchInput.value.trim();
             if (!query) {
@@ -429,13 +399,16 @@ function setupAudioPlayer(phoneNumber) {
 
                 createProfileChart(result.profile);
                 generateInsightHTML(result.profile, insights);
-
-                // Setup audio player only if the search was by phone number
-                if (isPhoneNumber) {
-                    setupAudioPlayer(query);
-                } else if (result.id) { // Or if the phone number (id) is returned with the code
-                    setupAudioPlayer(result.id);
+                
+                // --- CORRECTED LOGIC AND DEBUGGING CHECK ---
+                if (result.id) {
+                    console.log('✅ ID שהתקבל מהשרת ויישלח לניגון:', result.id);
+                    setupAudioPlayer(result.id); 
+                } else {
+                    console.warn("השרת לא החזיר ID עבור קובץ השמע.");
+                    audioPlayerContainer.innerHTML = ''; 
                 }
+                // --- END OF CORRECTION ---
 
                 resultsSection.classList.add('visible');
             } catch (error) {
