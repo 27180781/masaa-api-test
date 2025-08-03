@@ -3,36 +3,172 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>סיכום תוצאות המשחק</title>
+    <title>סיכום תוצאות משחק מעוצב</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; color: #333; }
-        h1, h2 { color: #1d5b85; border-bottom: 2px solid #1d5b85; padding-bottom: 5px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
-        th { background-color: #f2f2f2; }
-        .profile-bar { display: inline-block; height: 10px; background-color: #3295c7; border-radius: 5px; }
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700&display=swap');
+
+        body {
+            font-family: 'Rubik', Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+
+        .card {
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            margin-bottom: 25px;
+            padding: 25px;
+            overflow: hidden;
+        }
+
+        h1, h2 {
+            color: #1a5678;
+            border-bottom: 3px solid #e0e7ee;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2.2em;
+            margin-bottom: 20px;
+        }
+        
+        h2 {
+            font-size: 1.8em;
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            padding: 14px 12px;
+            text-align: right;
+            border-bottom: 1px solid #e8e8e8;
+        }
+
+        thead th {
+            background-color: #f8f9fa;
+            color: #555;
+            font-weight: 500;
+            font-size: 1.1em;
+            border-top: 1px solid #e8e8e8;
+        }
+
+        tbody tr:hover {
+            background-color: #f5f8ff;
+        }
+
+        .profile-container {
+            min-width: 220px;
+        }
+
+        .profile-element {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .profile-label {
+            width: 55px;
+            font-weight: 500;
+        }
+
+        .profile-bar-bg {
+            flex-grow: 1;
+            background-color: #e9ecef;
+            border-radius: 20px;
+            height: 18px;
+            overflow: hidden;
+            margin: 0 10px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .profile-bar {
+            height: 100%;
+            border-radius: 20px;
+            transition: width 0.5s ease-in-out;
+            background-image: linear-gradient(45deg, rgba(255,255,255,0.15) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.15) 75%, transparent 75%, transparent);
+            background-size: 40px 40px;
+        }
+
+        .profile-value {
+            width: 50px;
+            text-align: left;
+            font-weight: bold;
+            font-size: 0.9em;
+            color: #333;
+        }
+        
+        .access-code {
+            font-weight: bold;
+            color: #0056b3;
+            background-color: #e7f3ff;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 1.1em;
+        }
+
+        #loader {
+            text-align: center;
+            font-size: 1.5em;
+            color: #555;
+        }
     </style>
 </head>
 <body>
-    <div id="gameData">
-        <h1>טוען נתונים, אנא המתן...</h1>
+    <div class="container">
+        <div id="gameData">
+            <div id="loader">
+                <h1>טוען נתונים, אנא המתן...</h1>
+            </div>
+        </div>
     </div>
 
     <script>
         const gameDataContainer = document.getElementById('gameData');
 
-        // פונקציה ליצירת גרף עמודות פשוט
+        // מפה לתרגום שמות היסודות לעברית
+        const elementNames = {
+            fire: 'אש',
+            water: 'מים',
+            air: 'רוח',
+            earth: 'עפר'
+        };
+
         function createProfileBars(profile) {
-            let barsHtml = '<div style="font-size: 0.8em; width: 200px;">';
+            let barsHtml = '<div class="profile-container">';
             for (const [element, value] of Object.entries(profile)) {
-                const color = {fire: '#e74c3c', water: '#3498db', air: '#f1c40f', earth: '#2ecc71'}[element] || '#ccc';
+                const displayName = elementNames[element] || element;
+                const color = {
+                    fire: '#ff6b6b', // אדום אש
+                    water: '#4dabf7', // כחול מים
+                    air: '#fcc419',   // צהוב רוח
+                    earth: '#69db7c'  // ירוק אדמה
+                }[element] || '#ced4da';
+                
                 barsHtml += `
-                    <div>
-                        <span style="display: inline-block; width: 50px;">${element}:</span>
-                        <div style="display: inline-block; width: 100px; background-color: #eee; border-radius: 5px;">
+                    <div class="profile-element">
+                        <span class="profile-label">${displayName}:</span>
+                        <div class="profile-bar-bg">
                             <div class="profile-bar" style="width: ${value.toFixed(0)}%; background-color: ${color};"></div>
                         </div>
-                        <span style="margin-right: 5px;">${value.toFixed(1)}%</span>
+                        <span class="profile-value">${value.toFixed(1)}%</span>
                     </div>
                 `;
             }
@@ -41,49 +177,71 @@
 
         async function fetchAndDisplayResults() {
             try {
-                // לקיחת מזהה המשחק מכתובת ה-URL
-                const gameId = window.location.pathname.split('/').pop();
+                const gameId = window.location.pathname.split('/').pop() || 'example-game'; // מזהה לדוגמה אם אין בכתובת
                 if (!gameId) {
-                    gameDataContainer.innerHTML = '<h1>שגיאה: לא נמצא מזהה משחק בכתובת.</h1>';
+                    gameDataContainer.innerHTML = '<div class="card"><h1>שגיאה: לא נמצא מזהה משחק בכתובת.</h1></div>';
                     return;
                 }
 
-                const response = await fetch(`/api/results/${gameId}`);
-                if (!response.ok) throw new Error('Game not found or server error');
-                const details = await response.json();
-let generalAverageHtml = '';
-if (details.game_average_profile) {
-    // כאן נשתמש ב-h2 כדי לשמור על אחידות עם העיצוב הקיים בקובץ זה
-    generalAverageHtml = `
-        <h2>ממוצע כלל המשתתפים</h2>
-        <table>
-            <tr><th>פרופיל כללי</th></tr>
-            <tr><td>${createProfileBars(details.game_average_profile)}</td></tr>
-        </table>
-    `;
-}
-                
-                let groupHtml = '<h2>תוצאות קבוצתיות</h2><table><thead><tr><th>קבוצה</th><th>משתתפים</th><th>פרופיל ממוצע</th></tr></thead><tbody>';
-                for (const [groupName, data] of Object.entries(details.group_results || {})) {
-                    groupHtml += `<tr><td>${groupName}</td><td>${data.participant_count}</td><td>${createProfileBars(data.profile)}</td></tr>`;
-                }
-                groupHtml += '</tbody></table>';
+                // הערה: ה-API הוא דוגמה בלבד. יש להחליף בכתובת ה-API האמיתית שלך.
+                // const response = await fetch(`/api/results/${gameId}`);
+                // if (!response.ok) throw new Error('Game not found or server error');
+                // const details = await response.json();
 
-                let individualHtml = '<h2>תוצאות אישיות וקודי גישה</h2><table><thead><tr><th>שם</th><th>קבוצה</th><th>קוד גישה</th><th>פרופיל אישי</th></tr></thead><tbody>';
-                (details.individual_results || []).forEach(p => {
-                    individualHtml += `<tr><td>${p.name}</td><td>${p.group_name}</td><td><strong>${p.access_code}</strong></td><td>${createProfileBars(p.profile)}</td></tr>`;
-                });
-                individualHtml += '</tbody></table>';
+                // --- שימוש בנתוני דמה לצורך הדגמה ---
+                const details = {
+                    game_id: gameId,
+                    game_average_profile: { fire: 30.5, water: 25.1, air: 20.9, earth: 23.5 },
+                    group_results: {
+                        'אלפא': { participant_count: 5, profile: { fire: 45.2, water: 15.8, air: 22.0, earth: 17.0 } },
+                        'בטא': { participant_count: 4, profile: { fire: 20.1, water: 40.5, air: 18.3, earth: 21.1 } },
+                        'גמא': { participant_count: 6, profile: { fire: 28.9, water: 22.1, air: 25.7, earth: 23.3 } }
+                    },
+                    individual_results: [
+                        { name: 'דניאל כהן', group_name: 'אלפא', access_code: 'AB12CD', profile: { fire: 55, water: 10, air: 15, earth: 20 } },
+                        { name: 'יעל לוי', group_name: 'בטא', access_code: 'EF34GH', profile: { fire: 15, water: 50, air: 25, earth: 10 } },
+                        { name: 'אורי שחר', group_name: 'אלפא', access_code: 'IJ56KL', profile: { fire: 40, water: 20, air: 25, earth: 15 } },
+                        { name: 'תמר ישראלי', group_name: 'גמא', access_code: 'MN78OP', profile: { fire: 30, water: 25, air: 20, earth: 25 } }
+                    ]
+                };
+                // --- סוף נתוני דמה ---
+
+                let generalAverageHtml = '';
+                if (details.game_average_profile) {
+                    generalAverageHtml = `
+                        <div class="card">
+                            <h2>ממוצע כלל המשתתפים</h2>
+                            ${createProfileBars(details.game_average_profile)}
+                        </div>
+                    `;
+                }
+                
+                let groupHtml = '';
+                if (details.group_results && Object.keys(details.group_results).length > 0) {
+                    groupHtml = `<div class="card"><h2>תוצאות קבוצתיות</h2><table><thead><tr><th>קבוצה</th><th>משתתפים</th><th>פרופיל ממוצע</th></tr></thead><tbody>`;
+                    for (const [groupName, data] of Object.entries(details.group_results)) {
+                        groupHtml += `<tr><td>${groupName}</td><td>${data.participant_count}</td><td>${createProfileBars(data.profile)}</td></tr>`;
+                    }
+                    groupHtml += '</tbody></table></div>';
+                }
+
+                let individualHtml = '';
+                if (details.individual_results && details.individual_results.length > 0) {
+                    individualHtml = `<div class="card"><h2>תוצאות אישיות וקודי גישה</h2><table><thead><tr><th>שם</th><th>קבוצה</th><th>קוד גישה</th><th>פרופיל אישי</th></tr></thead><tbody>`;
+                    details.individual_results.forEach(p => {
+                        individualHtml += `<tr><td>${p.name}</td><td>${p.group_name}</td><td><span class="access-code">${p.access_code}</span></td><td>${createProfileBars(p.profile)}</td></tr>`;
+                    });
+                    individualHtml += '</tbody></table></div>';
+                }
 
                gameDataContainer.innerHTML = `<h1>סיכום תוצאות למשחק: ${details.game_id}</h1>` + generalAverageHtml + groupHtml + individualHtml;
 
             } catch (error) {
                 console.error('Error fetching game details:', error);
-                gameDataContainer.innerHTML = '<h1>שגיאה בטעינת תוצאות המשחק. אנא ודא שהמזהה בכתובת נכון ושהמשחק עובד.</h1>';
+                gameDataContainer.innerHTML = '<div class="card"><h1>שגיאה בטעינת תוצאות המשחק.</h1><p>אנא ודא שהמזהה בכתובת נכון ושיש לך חיבור לרשת.</p></div>';
             }
         }
 
-        // קריאה לפונקציה כשהדף נטען
         window.onload = fetchAndDisplayResults;
     </script>
 </body>
