@@ -337,7 +337,7 @@
                 audioButton.textContent = 'טוען הקלטה...';
 
                 //  !!!   חשוב מאוד: החלף את הכתובת הבאה בכתובת של השרת שלך ב-CapRover   !!!
-                const yourProxyServerUrl = 'https://crm.clicker.co.il/'; 
+                const yourProxyServerUrl = 'https://your-app-name.caprover.server.com'; 
                 
                 const audioUrl = `${yourProxyServerUrl}/download/${uniqueId}`;
                 console.log('מנסה לטעון קובץ שמע דרך שרת הפרוקסי:', audioUrl);
@@ -401,11 +401,11 @@
                 generateInsightHTML(result.profile, insights);
                 
                 // --- CORRECTED LOGIC AND DEBUGGING CHECK ---
-                if (result.id) {
-                    console.log('✅ ID שהתקבל מהשרת ויישלח לניגון:', result.id);
-                    setupAudioPlayer(result.id); 
+                if (result.archetype_id) {
+                    console.log('✅ מספר סוג האישיות שהתקבל מהשרת:', result.archetype_id);
+                    setupAudioPlayer(result.archetype_id); 
                 } else {
-                    console.warn("השרת לא החזיר ID עבור קובץ השמע.");
+                    console.warn("השרת לא החזיר מספר סוג אישיות (archetype_id).");
                     audioPlayerContainer.innerHTML = ''; 
                 }
                 // --- END OF CORRECTION ---
