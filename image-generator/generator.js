@@ -137,7 +137,7 @@ async function createGroupBreakdownImage(groups) {
 
 async function createParticipantListImage(participants) {
     const config = LAYOUT.participantList;
-    const { width, height, backgroundImagePath, padding, barWidth, barHeight, rowGap } = config;
+    const { width, height, backgroundImagePath, padding, barHeight } = config;
 
     if (!participants || participants.length === 0) {
         const noDataSvg = createTextSvg('לא נמצאו משתתפים להצגה', FONTS.noDataMessage, COLORS.title, width, height);
@@ -147,58 +147,50 @@ async function createParticipantListImage(participants) {
     const compositeLayers = [];
     const legendHeight = 80;
 
-    // 1. יצירת המקרא בפריסה נכונה של מימין לשמאל (RTL)
+    // 1. יצירת המקרא (ללא שינוי)
     const legendItems = [];
     const hebrewElements = { fire: 'אש', water: 'מים', air: 'אוויר', earth: 'אדמה' };
-    const legendItemWidth = 160; // הגדלת הריווח
+    const legendItemWidth = 160;
     let legendX = width - padding;
-
     for (const element of ['earth', 'air', 'water', 'fire']) {
         legendX -= legendItemWidth;
         const colorSquare = await sharp({ create: { width: 35, height: 35, channels: 4, background: COLORS.elements[element] } }).png().toBuffer();
         const textSvg = createRtlTextSvg(hebrewElements[element], FONTS.legendText, COLORS.text, 100, 40);
-        
         legendItems.push({ input: textSvg, top: padding - 30, left: legendX });
         legendItems.push({ input: colorSquare, top: padding - 25, left: legendX + 105 });
     }
     compositeLayers.push(...legendItems);
 
-    // 2. חישוב פריסה דינמית
-    const maxCols = 5;
-    const availableWidth = width - padding * 2;
-    const colWidth = availableWidth / maxCols;
+    // 2. חישוב פריסה דינמית מעודכנת
+    const maxCols = 4; // הקטנת מספר העמודות כדי לתת יותר מקום
+    const colWidth = (width - padding * 2) / maxCols;
+
+    const nameHeight = 40; // גובה שנקצה לשם המשתתף
+    const itemGap = 25; // רווח בין שורות
+    const totalItemHeight = nameHeight + barHeight + itemGap;
+
     const rows = Math.ceil(participants.length / maxCols);
     
-    const availableHeight = height - legendHeight - padding;
-    let rowHeight = availableHeight / rows;
-    let fontSize = parseInt(FONTS.participantName.split(' ')[2]);
-    if (rowHeight < 50) {
-        fontSize = Math.max(18, Math.floor(fontSize * (rowHeight / 50)));
-    }
-    const dynamicFont = `FbKanuba Bold ${fontSize}`;
-
-    // 3. יצירת רשימת המשתתפים בפריסה של מימין לשמאל
+    // 3. יצירת רשימת המשתתפים עם שם מעל הפס
     for (const [index, participant] of participants.entries()) {
         const row = Math.floor(index / maxCols);
         const col = index % maxCols;
         
-        const x = width - padding - (col + 1) * colWidth;
-        const y = legendHeight + row * (barHeight + rowGap + 10);
+        const x = width - padding - (col * colWidth) - colWidth; // חישוב מיקום עמודה מימין לשמאל
+        const y = legendHeight + (row * totalItemHeight);
 
-        const nameWidth = colWidth - barWidth - 30;
-
-        // שם המשתתף (מימין)
+        // שם המשתתף (יופיע למעלה)
         compositeLayers.push({
-            input: createRtlTextSvg(participant.name, dynamicFont, COLORS.text, nameWidth, barHeight),
+            input: createRtlTextSvg(participant.name, FONTS.participantName, COLORS.text, colWidth - 20, nameHeight),
             top: y,
-            left: x + barWidth + 20
+            left: x + 10
         });
 
-        // פס התפלגות (משמאל)
+        // פס התפלגות (יופיע מתחת לשם)
         compositeLayers.push({
-            input: createDistributionBarSvg(participant.profile, barWidth, barHeight),
-            top: y,
-            left: x
+            input: createDistributionBarSvg(participant.profile, colWidth - 20, barHeight),
+            top: y + nameHeight,
+            left: x + 10
         });
     }
 
