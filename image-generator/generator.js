@@ -142,23 +142,34 @@ async function createParticipantListImage(participants) {
         const noDataSvg = createTextSvg('לא נמצאו משתתפים להצגה', FONTS.noDataMessage, COLORS.title, width, height);
         return sharp(backgroundImagePath).resize(width, height).composite([{ input: noDataSvg }]).toBuffer();
     }
+
     const compositeLayers = [];
     const legendHeight = 80;
+
+    // 1. ⭐️ יצירת המקרא בפריסה של מימין לשמאל (RTL)
     const legendItems = [];
     const hebrewElements = { fire: 'אש', water: 'מים', air: 'אוויר', earth: 'אדמה' };
-    let legendX = padding;
-    for (const element of ['fire', 'water', 'air', 'earth']) {
+    const legendItemWidth = 150;
+    let legendX = width - padding; // התחלה מהקצה הימני
+
+    for (const element of ['earth', 'air', 'water', 'fire']) { // סדר הפוך לפריסה מימין לשמאל
+        legendX -= legendItemWidth; // הזז שמאלה לפני הוספה
         const colorSquare = sharp({ create: { width: 30, height: 30, channels: 4, background: COLORS.elements[element] } }).png().toBuffer();
-        const textSvg = createTextSvg(hebrewElements[element], FONTS.legendText, COLORS.text, 100, 40);
-        legendItems.push({ input: await colorSquare, top: padding - 20, left: legendX });
-        legendItems.push({ input: textSvg, top: padding - 25, left: legendX + 35 });
-        legendX += 150;
+        const textSvg = createRtlTextSvg(hebrewElements[element], FONTS.legendText, COLORS.text, 100, 40);
+        
+        // הצבת הריבוע הצבעוני (משמאל)
+        legendItems.push({ input: await colorSquare, top: padding - 20, left: legendX + 100 }); 
+        // הצבת הטקסט (מימין)
+        legendItems.push({ input: textSvg, top: padding - 25, left: legendX });
     }
     compositeLayers.push(...legendItems);
+
+    // 2. ⭐️ חישוב פריסה דינמית מימין לשמאל
     const maxCols = 5;
     const availableWidth = width - padding * 2;
     const colWidth = availableWidth / maxCols;
     const rows = Math.ceil(participants.length / maxCols);
+    
     const availableHeight = height - legendHeight - padding;
     let rowHeight = availableHeight / rows;
     let fontSize = parseInt(FONTS.participantName.split(' ')[2]);
@@ -166,16 +177,39 @@ async function createParticipantListImage(participants) {
         fontSize = Math.max(18, Math.floor(fontSize * (rowHeight / 50)));
     }
     const dynamicFont = `FbKanuba Bold ${fontSize}`;
+
+    // 3. ⭐️ יצירת רשימת המשתתפים בפריסה של מימין לשמאל
     for (const [index, participant] of participants.entries()) {
         const row = Math.floor(index / maxCols);
         const col = index % maxCols;
-        const x = padding + col * colWidth;
+        
+        // חישוב מיקום X מהצד הימני
+        const x = width - padding - (col + 1) * colWidth;
         const y = legendHeight + row * (barHeight + rowGap + 10);
+
         const nameWidth = colWidth - barWidth - 30;
-        compositeLayers.push({ input: createRtlTextSvg(participant.name, dynamicFont, COLORS.text, nameWidth, barHeight), top: y, left: x + barWidth + 20 });
-        compositeLayers.push({ input: createDistributionBarSvg(participant.profile, barWidth, barHeight), top: y, left: x });
+
+        // שם המשתתף (מימין)
+        compositeLayers.push({
+            input: createRtlTextSvg(participant.name, dynamicFont, COLORS.text, nameWidth, barHeight),
+            top: y,
+            left: x + barWidth + 10
+        });
+
+        // פס התפלגות (משמאל)
+        compositeLayers.push({
+            input: createDistributionBarSvg(participant.profile, barWidth, barHeight),
+            top: y,
+            left: x
+        });
     }
-    return sharp(backgroundImagePath).resize(width, height).composite(compositeLayers).toBuffer();
+
+    const finalImageBuffer = await sharp(backgroundImagePath)
+        .resize(width, height)
+        .composite(compositeLayers)
+        .toBuffer();
+
+    return finalImageBuffer;
 }
 
 module.exports = {
