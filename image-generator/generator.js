@@ -137,25 +137,26 @@ async function createGroupBreakdownImage(groups) {
 
 async function createParticipantListImage(participants) {
     const config = LAYOUT.participantList;
-    const { width, height, backgroundImagePath, padding, barWidth, barHeight } = config;
+    const { width, height, backgroundImagePath, padding, barWidth, barHeight, rowGap } = config;
 
     if (!participants || participants.length === 0) {
         const noDataSvg = createTextSvg('לא נמצאו משתתפים להצגה', FONTS.noDataMessage, COLORS.title, width, height);
         return sharp(backgroundImagePath).resize(width, height).composite([{ input: noDataSvg }]).toBuffer();
     }
 
-    const barLayers = [];
-    const svgElements = []; // מערך אחד שיכיל גם טקסט וגם צורות
+    const barLayers = []; // שכבות נפרדות לפסי ההתפלגות
+    const svgElements = []; // מערך שיכיל את כל רכיבי ה-SVG (טקסט וצורות)
 
     // 1. יצירת רכיבי SVG עבור המקרא
     const hebrewElements = { fire: 'אש', water: 'מים', air: 'אוויר', earth: 'אדמה' };
-    const legendItemWidth = 160;
+    const legendItemWidth = 180; // הגדלת הריווח
     let legendX = width - padding;
 
     for (const element of ['earth', 'air', 'water', 'fire']) {
         legendX -= legendItemWidth;
-        // ⬇️ תיקון טעות ההקלדה כאן (היה '35}')
-        svgElements.push(`<rect x="${legendX + 115}" y="${padding - 30}" width="35" height="35" fill="${COLORS.elements[element]}" />`);
+        // מרובע צבעוני כאלמנט SVG
+        svgElements.push(`<rect x="${legendX + 135}" y="${padding - 35}" width="40" height="40" fill="${COLORS.elements[element]}" />`);
+        // טקסט המקרא כאלמנט SVG
         svgElements.push(`<text x="${legendX}" y="${padding}" class="legend">${hebrewElements[element]}</text>`);
     }
 
@@ -171,20 +172,22 @@ async function createParticipantListImage(participants) {
         const col = index % maxCols;
         
         const x = width - padding - (col * colWidth) - colWidth;
-        const y = 120 + (row * totalItemHeight);
+        const y = 140 + (row * totalItemHeight);
 
+        // שם המשתתף כאלמנט SVG
         svgElements.push(`<text x="${x + colWidth - 20}" y="${y}" text-anchor="end" class="participant">${participant.name}</text>`);
 
+        // פס ההתפלגות (יווצר בנפרד ויוסף כשכבה גרפית)
         const barBuffer = await createDistributionBarSvg(participant.profile, barWidth, barHeight);
         barLayers.push({
             input: barBuffer,
             top: y + 10,
-            left: x + (colWidth - barWidth) / 2
+            left: x + (colWidth - barWidth - 100) // התאמת מיקום הפס
         });
     }
 
-    // 3. הרכבת שכבת הטקסט והצורות הסופית
-    const textLayerSvg = `
+    // 3. הרכבת שכבת ה-SVG הסופית (טקסט וצורות)
+    const finalSvgLayer = `
     <svg width="${width}" height="${height}">
       <style>
         text { font-family: "FbKanuba", sans-serif; fill: ${COLORS.text}; }
@@ -193,15 +196,14 @@ async function createParticipantListImage(participants) {
       </style>
       ${svgElements.join('')}
     </svg>`;
-
-    const textLayerBuffer = Buffer.from(textLayerSvg);
+    const svgLayerBuffer = Buffer.from(finalSvgLayer);
 
     // 4. הרכבת התמונה הסופית
     const finalImageBuffer = await sharp(backgroundImagePath)
         .resize(width, height)
         .composite([
-            ...barLayers,
-            { input: textLayerBuffer }
+            ...barLayers, // הוספת כל פסי ההתפלגות
+            { input: svgLayerBuffer, top: 0, left: 0 } // הוספת שכבת הטקסט והצורות מעל
         ])
         .toBuffer();
 
