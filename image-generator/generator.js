@@ -155,7 +155,7 @@ async function createParticipantListImage(participants) {
     for (const element of ['earth', 'air', 'water', 'fire']) {
         legendX -= legendItemWidth;
         const colorSquare = await sharp({ create: { width: 35, height: 35, channels: 4, background: COLORS.elements[element] } }).png().toBuffer();
-        const textSvg = createRtlTextSvg(hebrewElements[element], FONTS.legendText, COLORS.text, 100, 40);
+    const textSvg = createRtlTextSvg(hebrewElements[element], FONTS.legendText, COLORS.text, 120, 50);
         legendItems.push({ input: textSvg, top: padding - 30, left: legendX });
         legendItems.push({ input: colorSquare, top: padding - 25, left: legendX + 105 });
     }

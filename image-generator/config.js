@@ -22,7 +22,7 @@ const FONTS = {
     groupTitle: 'FbKanuba Bold 48',
     noDataMessage: 'FbKanuba Bold 60',
     participantName: 'FbKanuba Bold 32',
-    legendText: 'FbKanuba 38'
+    legendText: 'FbKanuba 40'
 };
 
 const LAYOUT = {
