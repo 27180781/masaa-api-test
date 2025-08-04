@@ -71,6 +71,7 @@ app.get('/results_admin', adminOnly, (req, res) => res.sendFile(path.join(__dirn
 app.get('/insights_admin', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'insights_admin.html')));
 app.get('/my-result', (req, res) => res.sendFile(path.join(__dirname, 'my_result.html')));
 app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'client_dashboard.html')));
+app.get('/gallery', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'gallery.html'))); // ⬅️ הוסף את השורה הזו
 app.get('/unified_dashboard', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'unified_dashboard.html')));
 
 // ===================================================================
@@ -631,6 +632,69 @@ app.get('/images/participant-list/:gameId.png', async (req, res) => {
         res.status(500).send('Error generating image');
     }
 });
+
+// ===================================================================
+//                          🧪 TEST ROUTES FOR GALLERY
+// ===================================================================
+// נתונים פיקטיביים לשימוש בנתיבי הבדיקה
+const mockData = {
+    summaryProfile: { fire: 35.5, water: 20.1, air: 14.9, earth: 29.5 },
+    participants: [
+        { name: 'ישראל ישראלי', profile: { fire: 50, water: 25, air: 15, earth: 10 } },
+        { name: 'משה כהן', profile: { fire: 10, water: 40, air: 30, earth: 20 } },
+        { name: 'דנה לוי', profile: { fire: 20, water: 10, air: 60, earth: 10 } },
+        { name: 'אביגיל שרון', profile: { fire: 15, water: 15, air: 15, earth: 55 } },
+        { name: 'יונתן אדלר', profile: { fire: 25, water: 25, air: 25, earth: 25 } },
+        { name: 'תמר גולדשטיין', profile: { fire: 80, water: 5, air: 5, earth: 10 } },
+        { name: 'דוד ביטון', profile: { fire: 5, water: 70, air: 15, earth: 10 } }
+    ],
+    groups: [
+        { group_name: 'קבוצה 1', profile: { fire: 40, water: 30, air: 20, earth: 10 } },
+        { group_name: 'קבוצה 2', profile: { fire: 10, water: 20, air: 30, earth: 40 } },
+        { group_name: 'קבוצת הנשרים', profile: { fire: 60, water: 10, air: 20, earth: 10 } }
+    ]
+};
+
+// נתיב קיים - נוודא שהוא משתמש בנתונים החדשים
+app.get('/images/test/game-summary', async (req, res) => {
+    try {
+        const imageBuffer = await imageGenerator.createGameSummaryImage(mockData.summaryProfile);
+        res.setHeader('Content-Type', 'image/png').send(imageBuffer);
+    } catch (e) { res.status(500).send('Error generating test image'); }
+});
+
+// נתיב חדש - רשימת משתתפים
+app.get('/images/test/participant-list', async (req, res) => {
+    try {
+        const imageBuffer = await imageGenerator.createParticipantListImage(mockData.participants);
+        res.setHeader('Content-Type', 'image/png').send(imageBuffer);
+    } catch (e) { res.status(500).send('Error generating test image'); }
+});
+
+// נתיב חדש - פילוח קבוצות
+app.get('/images/test/group-breakdown', async (req, res) => {
+    try {
+        const imageBuffer = await imageGenerator.createGroupBreakdownImage(mockData.groups);
+        res.setHeader('Content-Type', 'image/png').send(imageBuffer);
+    } catch (e) { res.status(500).send('Error generating test image'); }
+});
+
+// נתיב חדש - סטטוס תקין
+app.get('/images/test/license-status-valid', async (req, res) => {
+    try {
+        const imageBuffer = await imageGenerator.createLicenseStatusImage('valid');
+        res.setHeader('Content-Type', 'image/png').send(imageBuffer);
+    } catch (e) { res.status(500).send('Error generating test image'); }
+});
+
+// נתיב חדש - סטטוס פג תוקף
+app.get('/images/test/license-status-expired', async (req, res) => {
+    try {
+        const imageBuffer = await imageGenerator.createLicenseStatusImage('expired');
+        res.setHeader('Content-Type', 'image/png').send(imageBuffer);
+    } catch (e) { res.status(500).send('Error generating test image'); }
+});
+
 // ===================================================================
 //                          SERVER STARTUP
 // ===================================================================
