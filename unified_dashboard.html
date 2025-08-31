@@ -219,35 +219,54 @@
         <div id="page-dashboard" class="page-view active">
             <h1>👋 ברוכים הבאים לדשבורד הראשי</h1>
             <div class="card">
-                <h3>סיכום מצב המשחקים</h3>
-                <div id="dashboardSummary">טוען סיכום...</div>
+                <h3>סיכום לפי שיטת השיוך הישנה (מאגרים)</h3>
+                <div id="dashboardSummaryOld">טוען סיכום...</div>
+                <hr style="margin: 25px 0; border: 0; border-top: 1px solid var(--border-color);">
+                <h3>סיכום לפי שיטת השיוך החדשה (ידני)</h3>
+                <div id="dashboardSummaryNew">טוען סיכום...</div>
             </div>
         </div>
 
         <div id="page-games" class="page-view">
             <h1>🎮 ניהול משחקים</h1>
              <div class="grid-container">
-                <div class="card">
-                    <h3>הוספת מזהים חדשים (בפעימה)</h3>
-                    <form id="addGamesForm">
-                        <label for="game_ids">הדבק רשימת ערכות (כל ערכה בשורה חדשה):</label>
-                        <textarea id="game_ids" rows="10" placeholder="פורמט: מזהה,שם,מספר משתתפים&#10;לדוגמה:&#10;GAME123,לקוח א,50"></textarea>
-                        <button type="submit" class="success-btn">הוסף למאגר</button>
+                <div class="card" style="grid-column: 1 / -1;">
+                    <h3>הוספה ושיוך משחק חדש (שיטה חדשה)</h3>
+                    <form id="addNewGameForm">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; align-items: flex-end;">
+                            <div>
+                                <label for="new_game_id">מזהה משחק:</label>
+                                <input type="text" id="new_game_id" required placeholder="לדוגמה: MASA-XYZ-123">
+                            </div>
+                            <div>
+                                <label for="new_game_name">שם המשחק:</label>
+                                <input type="text" id="new_game_name" required placeholder="לדוגמה: משחק לחברת הגלידות">
+                            </div>
+                            <div>
+                                <label for="new_game_email">אימייל לשיוך:</label>
+                                <input type="email" id="new_game_email" required placeholder="manager@example.com">
+                            </div>
+                            <div>
+                                <button type="submit" class="success-btn" style="width: 100%;">שייך משחק</button>
+                            </div>
+                        </div>
                     </form>
                 </div>
-                <div class="card">
-                    <h3>יצירת קישור למשחק בודד (ידני)</h3>
-                    <label for="assign_email">הכנס כתובת אימייל:</label>
-                    <input type="email" id="assign_email" placeholder="your_email@example.com">
-                    <label for="assign_participant_count">הכנס מספר משתתפים:</label>
-                    <input type="number" id="assign_participant_count" placeholder="לדוגמה: 30">
-                    <button onclick="assignGameManually()">קבל קישור למשחק</button>
-                    <div id="assign_result" class="result-box"></div>
-                    <div id="assign_error" class="error-message"></div>
+                
+                </div>
+
+            <div class="card">
+                <h3>רשימת משחקים משויכים (תצוגה חדשה)</h3>
+                <div style="max-height: 500px; overflow-y: auto;">
+                    <table>
+                        <thead><tr><th>שם המשחק</th><th>מזהה</th><th>מייל משויך</th><th>סטטוס</th><th>פעולות</th></tr></thead>
+                        <tbody id="newGamesTableBody"></tbody>
+                    </table>
                 </div>
             </div>
+
             <div class="card">
-                <h3>סטטוס מזהי משחק</h3>
+                <h3>רשימת כל המשחקים (תצוגה מפורטת - מורשת)</h3>
                 <div style="max-height: 500px; overflow-y: auto;">
                     <table>
                         <thead><tr><th>מזהה</th><th>שם</th><th>משתתפים</th><th>סטטוס</th><th>מייל</th><th>ת. שיוך</th><th>ת. סיום</th><th>פעולות</th></tr></thead>
@@ -373,7 +392,11 @@
             
             // Trigger data fetching for the specific page
             switch(pageId) {
-                case 'page-dashboard': fetchDashboardSummary(); break;
+                case 'page-dashboard':
+                    // [שינוי] טעינת שני הסיכומים
+                    fetchOldDashboardSummary();
+                    fetchNewDashboardSummary();
+                    break;
                 case 'page-games': fetchGames(); break;
                 case 'page-questions': fetchQuestions(); break;
                 case 'page-insights': loadInsights(); break;
@@ -400,22 +423,24 @@
         // --- Page-Specific Logic ---
 
         // **********************************
-        // ** Dashboard (from master_admin) **
+        // ** Dashboard **
         // **********************************
-        const dashboardSummaryContainer = document.getElementById('dashboardSummary');
+        const dashboardSummaryOldContainer = document.getElementById('dashboardSummaryOld');
+        const dashboardSummaryNewContainer = document.getElementById('dashboardSummaryNew');
 
-        async function fetchDashboardSummary() {
+        // [שינוי] פונקציה לסיכום הישן
+        async function fetchOldDashboardSummary() {
             try {
                 const response = await fetch('/api/games/summary');
                 const summary = await response.json();
                 
-                dashboardSummaryContainer.innerHTML = '';
+                dashboardSummaryOldContainer.innerHTML = '';
                 if (Object.keys(summary).length === 0) {
-                    dashboardSummaryContainer.innerHTML = '<p>לא נמצאו משחקים.</p>';
+                    dashboardSummaryOldContainer.innerHTML = '<p>לא נמצאו משחקים שהוגדרו מראש במאגרים.</p>';
                     return;
                 }
 
-                dashboardSummaryContainer.innerHTML = Object.entries(summary).map(([count, data]) => `
+                dashboardSummaryOldContainer.innerHTML = Object.entries(summary).map(([count, data]) => `
                     <p style="border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px;">
                         <strong>מאגר ל-${count} משתתפים:</strong> סה"כ ${data.total}.<br>
                         <span style="color: var(--success-color);">✅ פנויים: ${data.available || 0}</span> | 
@@ -424,13 +449,47 @@
                     </p>
                 `).join('');
             } catch (error) {
-                handleError(error, 'טעינת סיכום דשבורד');
-                dashboardSummaryContainer.innerHTML = '<p>שגיאה בטעינת הנתונים.</p>';
+                handleError(error, 'טעינת סיכום ישן');
+                dashboardSummaryOldContainer.innerHTML = '<p>שגיאה בטעינת הנתונים.</p>';
+            }
+        }
+        
+        // [שינוי] פונקציה חדשה לסיכום החדש
+        async function fetchNewDashboardSummary() {
+             try {
+                // הערה: נצטרך לוודא שיש API שתומך בסיכום כזה.
+                // בינתיים, נסנן את הנתונים מה-API הקיים בצד הלקוח.
+                const response = await fetch('/api/games');
+                const games = await response.json();
+
+                // סינון למשחקים שנוצרו בשיטה החדשה (יש להם מייל ואין להם ספירת משתתפים מוגדרת מראש)
+                const newMethodGames = games.filter(g => g.client_email);
+                
+                const completedCount = newMethodGames.filter(g => g.status === 'completed').length;
+                const totalCount = newMethodGames.length;
+
+                if (totalCount === 0) {
+                     dashboardSummaryNewContainer.innerHTML = '<p>לא שויכו משחקים באופן ידני.</p>';
+                     return;
+                }
+                
+                dashboardSummaryNewContainer.innerHTML = `
+                     <p style="font-size: 1.1em;">
+                        <strong>סך הכל שויכו:</strong> ${totalCount} משחקים.<br>
+                        <span style="color: var(--primary-color);"><strong>הושלמו:</strong> ${completedCount}</span> | 
+                        <span style="color: var(--warning-color);"><strong>פעילים:</strong> ${totalCount - completedCount}</span>
+                    </p>
+                `;
+
+            } catch (error) {
+                handleError(error, 'טעינת סיכום חדש');
+                dashboardSummaryNewContainer.innerHTML = '<p>שגיאה בטעינת הנתונים.</p>';
             }
         }
 
+
         // **********************************
-        // ** Settings (from master_admin) **
+        // ** Settings **
         // **********************************
         async function loadSettings() {
             try {
@@ -456,22 +515,27 @@
         }
         
         // *****************************************************************
-        // ** Game Management (games_admin + manual assign) **
+        // ** Game Management **
         // *****************************************************************
-        const addGamesForm = document.getElementById('addGamesForm');
         const gamesTableBody = document.getElementById('gamesTableBody');
+        const newGamesTableBody = document.getElementById('newGamesTableBody'); // [שינוי] טבלה חדשה
+        const addNewGameForm = document.getElementById('addNewGameForm'); // [שינוי] טופס חדש
 
         async function fetchGames() {
             try {
                 const response = await fetch('/api/games');
                 const games = await response.json();
                 gamesTableBody.innerHTML = '';
+                newGamesTableBody.innerHTML = ''; // [שינוי] ניקוי הטבלה החדשה
+
+                const statusMap = {
+                    available: '<span style="color: var(--success-color);">✅ פנוי</span>',
+                    assigned: '<span style="color: var(--warning-color);">🟡 משויך</span>',
+                    completed: '<span style="color: var(--primary-color);">🔵 הסתיים</span>'
+                };
+
                 games.forEach(game => {
-                    const statusMap = {
-                        available: '<span style="color: var(--success-color);">✅ פנוי</span>',
-                        assigned: '<span style="color: var(--warning-color);">🟡 משויך</span>',
-                        completed: '<span style="color: var(--primary-color);">🔵 הסתיים</span>'
-                    };
+                    // אוכלוסיית הטבלה המפורטת (מורשת) - ללא שינוי
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td><strong>${game.game_id}</strong></td>
@@ -484,33 +548,55 @@
                         <td><button class="delete-btn" onclick="deleteGame('${game.game_id}')">מחק</button></td>
                     `;
                     gamesTableBody.appendChild(row);
+
+                    // [שינוי] אוכלוסיית הטבלה החדשה (רק משחקים משויכים)
+                    if (game.client_email) {
+                        const newRow = document.createElement('tr');
+                        newRow.innerHTML = `
+                            <td>${game.name || '-'}</td>
+                            <td><strong>${game.game_id}</strong></td>
+                            <td>${game.client_email}</td>
+                            <td>${statusMap[game.status] || game.status}</td>
+                            <td><button class="delete-btn" onclick="deleteGame('${game.game_id}')">מחק</button></td>
+                        `;
+                        newGamesTableBody.appendChild(newRow);
+                    }
                 });
             } catch (error) { handleError(error, 'טעינת רשימת משחקים'); }
         }
-
-        addGamesForm.addEventListener('submit', async (e) => {
+        
+        // [שינוי] אירוע שליחה לטופס החדש
+        addNewGameForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const games_data = document.getElementById('game_ids').value.split('\n')
-                .filter(line => line.trim() !== '')
-                .map(line => {
-                    const [game_id, name, participant_count] = line.split(',');
-                    return { game_id: game_id?.trim(), name: name?.trim(), participant_count: parseInt(participant_count?.trim(), 10) };
-                }).filter(g => g.game_id && g.name && !isNaN(g.participant_count));
+            const game_id = document.getElementById('new_game_id').value;
+            const name = document.getElementById('new_game_name').value;
+            const client_email = document.getElementById('new_game_email').value;
 
-            if (games_data.length === 0) return alert('נא להזין נתונים בפורמט הנכון.');
+            if (!game_id || !name || !client_email) {
+                return alert('יש למלא את כל השדות: מזהה, שם ואימייל.');
+            }
 
             try {
-                const res = await fetch('/api/games/bulk', {
+                 const res = await fetch('/api/games', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ games_data })
+                    body: JSON.stringify({ game_id, name, client_email })
                 });
+
                 if (res.ok) {
-                    document.getElementById('game_ids').value = '';
+                    alert('המשחק שויך בהצלחה!');
+                    addNewGameForm.reset();
                     fetchGames();
-                    fetchDashboardSummary();
-                } else { alert('שגיאה בהוספת משחקים'); }
-            } catch (error) { handleError(error, 'הוספת משחקים'); }
+                    // [שינוי] רענון הדשבורד לאחר הוספה
+                    fetchOldDashboardSummary();
+                    fetchNewDashboardSummary();
+                } else {
+                     const errorData = await res.json();
+                     alert(`שגיאה בשיוך המשחק: ${errorData.message}`);
+                }
+            } catch(error) {
+                handleError(error, 'שיוך משחק חדש');
+            }
         });
 
         window.deleteGame = async (gameId) => {
@@ -519,60 +605,11 @@
                 const res = await fetch(`/api/games/${gameId}`, { method: 'DELETE' });
                 if (res.ok) {
                     fetchGames();
-                    fetchDashboardSummary();
+                    // [שינוי] רענון הדשבורד לאחר מחיקה
+                    fetchOldDashboardSummary();
+                    fetchNewDashboardSummary();
                 } else { alert('שגיאה במחיקת משחק'); }
             } catch(e) { handleError(e, 'מחיקת משחק'); }
-        }
-
-        window.assignGameManually = async () => {
-            const emailInput = document.getElementById('assign_email');
-            const countInput = document.getElementById('assign_participant_count');
-            const resultDiv = document.getElementById('assign_result');
-            const errorDiv = document.getElementById('assign_error');
-            
-            resultDiv.innerHTML = '';
-            errorDiv.textContent = '';
-
-            if (!emailInput.value || !countInput.value) {
-                errorDiv.textContent = 'אנא מלא את כל השדות: אימייל ומספר משתתפים.';
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/games/assign', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        client_email: emailInput.value, 
-                        participant_count: parseInt(countInput.value, 10) 
-                    })
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ message: 'תשובה לא תקינה מהשרת' }));
-                    throw new Error(errorData.message || `שגיאת HTTP: ${response.status}`);
-                }
-
-                const data = await response.json();
-
-                if (data.status === 'success' && data.assigned_game_id) {
-                    const gameLink = `https://game.clicker.co.il?userId=1212&game=https://app.clicker.co.il/game/web-export/${data.assigned_game_id}`;
-                    resultDiv.innerHTML = `
-                        <p><strong>הערכה שויכה בהצלחה!</strong></p>
-                        <p><strong>שם הערכה:</strong> ${data.name || 'לא צוין'}</p>
-                        <p><strong>קישור למשחק:</strong></p>
-                        <a href="${gameLink}" target="_blank">${gameLink}</a>
-                    `;
-                    emailInput.value = '';
-                    countInput.value = '';
-                    fetchGames(); // Refresh the games list
-                    fetchDashboardSummary(); // Refresh the summary
-                } else {
-                    errorDiv.textContent = 'שגיאה בקבלת המזהה: ' + (data.message || 'לא התקבל מזהה משחק.');
-                }
-            } catch (error) {
-                errorDiv.textContent = 'שגיאה בשליחת הבקשה: ' + error.message;
-            }
         }
 
 
