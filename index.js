@@ -540,7 +540,7 @@ app.post('/api/submit-results', async (req, res) => {
     }
 });
 
-// נתיב הבדיקה המעודכן
+// נתיב הבדיקה המעודכןן
 app.get('/images/test/game-summary', async (req, res) => {
     try {
         console.log('🧪 Generating a test image...');
