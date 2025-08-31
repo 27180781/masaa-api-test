@@ -62,24 +62,26 @@ const adminOnly = basicAuth({
     unauthorizedResponse: 'Unauthorized access'
 });
 
-// [הערה] מפנה את כל הנתיבים הישנים לדשבורד המאוחד החדש
 app.get('/', adminOnly, (req, res) => res.redirect('/unified_dashboard'));
+app.get('/unified_dashboard', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'unified_dashboard.html')));
+app.get('/my-result', (req, res) => res.sendFile(path.join(__dirname, 'my_result.html')));
+app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'client_dashboard.html')));
+
+// נתיבים ישנים יותר שהופנו מחדש או נמחקו
 app.get('/master_admin', adminOnly, (req, res) => res.redirect('/unified_dashboard'));
 app.get('/logs', adminOnly, (req, res) => res.redirect('/unified_dashboard#logs'));
 app.get('/admin', adminOnly, (req, res) => res.redirect('/unified_dashboard#questions'));
 app.get('/games_admin', adminOnly, (req, res) => res.redirect('/unified_dashboard#games'));
 app.get('/results_admin', adminOnly, (req, res) => res.redirect('/unified_dashboard#results'));
 app.get('/insights_admin', adminOnly, (req, res) => res.redirect('/unified_dashboard#insights'));
-app.get('/unified_dashboard', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'unified_dashboard.html')));
-app.get('/my-result', (req, res) => res.sendFile(path.join(__dirname, 'my_result.html')));
-app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'client_dashboard.html')));
 app.get('/gallery', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'gallery.html')));
+
 
 // ===================================================================
 //                      API ROUTES
 // ===================================================================
 
-// --- Settings, Questions, Insights APIs (ללא שינוי) ---
+// --- Settings, Questions, Insights APIs ---
 app.get('/api/settings', (req, res) => {
     try {
         const row = db.prepare('SELECT settings_data FROM settings WHERE id = 1').get();
@@ -136,7 +138,7 @@ app.post('/api/insights', (req, res) => {
     } catch (e) { res.status(500).json({ message: 'Internal Server Error' }); }
 });
 
-// --- Games API (מתוקן ומסודר) ---
+// --- Games API ---
 app.get('/api/games', (req, res) => {
     try {
         const games = db.prepare('SELECT * FROM games ORDER BY created_at DESC').all();
@@ -176,7 +178,7 @@ app.get('/api/games/summary', (req, res) => {
     } catch (e) { console.error('❌ Error fetching games summary:', e); res.status(500).json({ message: 'Internal Server Error' }); }
 });
 
-// --- Results API (Admin) - גרסה מתוקנת ---
+// --- Results API (Admin) ---
 app.get('/api/results', (req, res) => {
     try {
         const summaries = db.prepare('SELECT game_id, client_email, processed_at FROM game_summaries ORDER BY processed_at DESC').all();
@@ -210,23 +212,15 @@ app.get('/api/results/:gameId', (req, res) => {
     } catch (e) { console.error('❌ Error reading result:', e); res.status(500).json({ message: 'Internal Server Error' }); }
 });
 
-// --- Helper & End User Result API - גרסה מתוקנת ---
+// --- Helper & End User Result API ---
 function findClosestArchetype(userProfile) {
     if (!userProfile) return null;
     if (!archetypes || archetypes.length === 0) return null;
-    let bestMatch = null;
-    let minDifference = Infinity;
+    let bestMatch = null; let minDifference = Infinity;
     for (const archetype of archetypes) {
         if (!archetype.profile || typeof archetype.profile.fire === 'undefined') continue;
-        const currentDifference =
-            Math.abs((userProfile.fire || 0) - archetype.profile.fire) +
-            Math.abs((userProfile.water || 0) - archetype.profile.water) +
-            Math.abs((userProfile.air || 0) - archetype.profile.air) +
-            Math.abs((userProfile.earth || 0) - archetype.profile.earth);
-        if (currentDifference < minDifference) {
-            minDifference = currentDifference;
-            bestMatch = archetype;
-        }
+        const currentDifference = Math.abs((userProfile.fire || 0) - archetype.profile.fire) + Math.abs((userProfile.water || 0) - archetype.profile.water) + Math.abs((userProfile.air || 0) - archetype.profile.air) + Math.abs((userProfile.earth || 0) - archetype.profile.earth);
+        if (currentDifference < minDifference) { minDifference = currentDifference; bestMatch = archetype; }
     }
     return { archetype: bestMatch, score: minDifference };
 }
@@ -252,8 +246,7 @@ function findUserResult(searchKey, searchValue) {
         JOIN game_summaries gs ON ir.game_id = gs.game_id
         WHERE ${dbKey} = ?
         ORDER BY gs.processed_at DESC
-        LIMIT 1
-    `;
+        LIMIT 1`;
     const user = db.prepare(query).get(searchValue);
     if (!user) return null;
     return {
@@ -282,7 +275,7 @@ app.get('/api/my-result/by-phone/:phone', (req, res) => {
     } catch (e) { console.error('❌ Error searching by phone:', e); res.status(500).json({ message: 'Internal Server Error' }); }
 });
 
-// --- API for IVR System (ללא שינוי מהקובץ המקורי שלך) ---
+// --- API for IVR System ---
 app.post('/api/get-intro-text', (req, res) => {
     try {
         const phone = req.body.ApiPhone;
@@ -300,7 +293,7 @@ app.post('/api/get-intro-text', (req, res) => {
         const finalResponseString = `id_list_message=${messages.join('.')}&go_to_folder=/1`;
         res.set('Content-Type', 'text/plain; charset=utf-8').send(finalResponseString);
     } catch (e) {
-        console.error('❌ Error in manual /api/get-intro-text:', e);
+        console.error('❌ Error in /api/get-intro-text:', e);
         res.set('Content-Type', 'text/plain; charset=utf-8').send('id_list_message=t-אירעה שגיאה בשרת אנא נסה שוב מאוחר יותר');
     }
 });
@@ -329,7 +322,7 @@ app.post('/api/get-archetype/by-code', (req, res) => {
     } catch (e) { console.error('❌ Error in /api/get-archetype/by-code:', e); res.status(500).send('Internal Server Error'); }
 });
 
-// --- Main Game Results Submission (עם תיקון קריטי) ---
+// --- Main Game Results Submission ---
 app.post('/api/submit-results', async (req, res) => {
     try {
         const logEntry = { timestamp: new Date().toISOString(), type: 'SUBMIT_RESULTS', data: req.body };
@@ -340,7 +333,7 @@ app.post('/api/submit-results', async (req, res) => {
         let { game_id, participants } = req.body;
         if (!game_id || !participants) return res.status(400).json({ message: 'Invalid data structure' });
         
-        game_id = game_id.trim().toUpperCase(); // <-- תיקון קריטי
+        game_id = game_id.trim().toUpperCase();
         
         const gameRow = db.prepare('SELECT client_email FROM games WHERE game_id = ?').get(game_id);
         const client_email = gameRow ? gameRow.client_email : null;
@@ -443,37 +436,13 @@ app.post('/api/submit-results', async (req, res) => {
     }
 });
 
-// [הוספה] נתיב דיבאג מיוחד לבדיקת מצב בסיס הנתונים
-app.get('/api/debug/db-check', adminOnly, (req, res) => {
-    try {
-        const gamesCount = db.prepare('SELECT COUNT(*) as count FROM games').get().count;
-        const summariesCount = db.prepare('SELECT COUNT(*) as count FROM game_summaries').get().count;
-        const individualsCount = db.prepare('SELECT COUNT(*) as count FROM individual_results').get().count;
-        
-        const sampleSummaries = db.prepare('SELECT game_id, processed_at FROM game_summaries ORDER BY processed_at DESC LIMIT 10').all();
-
-        res.json({
-            message: "Database Status Check",
-            counts: {
-                games: gamesCount,
-                game_summaries: summariesCount,
-                individual_results: individualsCount
-            },
-            sample_summaries: sampleSummaries
-        });
-    } catch(e) {
-        res.status(500).json({ error: "Failed to check database", details: e.message });
-    }
-});
-
-
-// --- Image Generation & Test Routes (ללא שינוי) ---
-app.get('/images/test/game-summary', async (req, res) => { try { const mockProfile = { fire: 35.5, water: 20.1, air: 14.9, earth: 29.5 }; const imageBuffer = await imageGenerator.createGameSummaryImage(mockProfile); res.setHeader('Content-Type', 'image/png').send(imageBuffer); } catch (error) { res.status(500).send('Error generating test image'); }});
-app.get('/images/game-summary/:gameId.png', async (req, res) => { try { const { gameId } = req.params; const row = db.prepare('SELECT game_average_profile FROM game_summaries WHERE game_id = ?').get(gameId); if (!row) return res.status(404).send('Results not found'); const profile = JSON.parse(row.game_average_profile); const imageBuffer = await imageGenerator.createGameSummaryImage(profile); res.setHeader('Content-Type', 'image/png').send(imageBuffer); } catch (error) { res.status(500).send('Error generating image'); }});
-app.get('/images/license-status/:gameId.png', async (req, res) => { try { const { gameId } = req.params; const game = db.prepare('SELECT status FROM games WHERE game_id = ?').get(gameId); if (!game) return res.status(404).send('Game not found'); const licenseStatus = (game.status === 'completed') ? 'expired' : 'valid'; const imageBuffer = await imageGenerator.createLicenseStatusImage(licenseStatus); res.setHeader('Content-Type', 'image/png').send(imageBuffer); } catch (error) { res.status(500).send('Error generating image'); }});
-app.get('/images/group-breakdown/:gameId.png', async (req, res) => { try { const { gameId } = req.params; const groupsData = db.prepare('SELECT group_name, profile_data FROM group_results WHERE game_id = ?').all(gameId); const groups = groupsData.map(g => ({ group_name: g.group_name, profile: JSON.parse(g.profile_data) })); const imageBuffer = await imageGenerator.createGroupBreakdownImage(groups); res.setHeader('Content-Type', 'image/png').send(imageBuffer); } catch (error) { res.status(500).send('Error generating image'); }});
-app.get('/images/participant-list/:gameId.png', async (req, res) => { try { const { gameId } = req.params; const participantsData = db.prepare('SELECT user_name, profile_data FROM individual_results WHERE game_id = ?').all(gameId); const participants = participantsData.map(p => ({ name: p.user_name, profile: JSON.parse(p.profile_data) })); const imageBuffer = await imageGenerator.createParticipantListImage(participants); res.setHeader('Content-Type', 'image/png').send(imageBuffer); } catch (error) { res.status(500).send('Error generating image'); }});
+// --- Image Generation & Test Routes ---
+app.get('/images/game-summary/:gameId.png', async (req, res) => { try { const upper_gameId = req.params.gameId.toUpperCase(); const row = db.prepare('SELECT game_average_profile FROM game_summaries WHERE game_id = ?').get(upper_gameId); if (!row) return res.status(404).send('Results not found'); const profile = JSON.parse(row.game_average_profile); const imageBuffer = await imageGenerator.createGameSummaryImage(profile); res.setHeader('Content-Type', 'image/png').send(imageBuffer); } catch (error) { res.status(500).send('Error generating image'); }});
+app.get('/images/license-status/:gameId.png', async (req, res) => { try { const upper_gameId = req.params.gameId.toUpperCase(); const game = db.prepare('SELECT status FROM games WHERE game_id = ?').get(upper_gameId); if (!game) return res.status(404).send('Game not found'); const licenseStatus = (game.status === 'completed') ? 'expired' : 'valid'; const imageBuffer = await imageGenerator.createLicenseStatusImage(licenseStatus); res.setHeader('Content-Type', 'image/png').send(imageBuffer); } catch (error) { res.status(500).send('Error generating image'); }});
+app.get('/images/group-breakdown/:gameId.png', async (req, res) => { try { const upper_gameId = req.params.gameId.toUpperCase(); const groupsData = db.prepare('SELECT group_name, profile_data FROM group_results WHERE game_id = ?').all(upper_gameId); const groups = groupsData.map(g => ({ group_name: g.group_name, profile: JSON.parse(g.profile_data) })); const imageBuffer = await imageGenerator.createGroupBreakdownImage(groups); res.setHeader('Content-Type', 'image/png').send(imageBuffer); } catch (error) { res.status(500).send('Error generating image'); }});
+app.get('/images/participant-list/:gameId.png', async (req, res) => { try { const upper_gameId = req.params.gameId.toUpperCase(); const participantsData = db.prepare('SELECT user_name, profile_data FROM individual_results WHERE game_id = ?').all(upper_gameId); const participants = participantsData.map(p => ({ name: p.user_name, profile: JSON.parse(p.profile_data) })); const imageBuffer = await imageGenerator.createParticipantListImage(participants); res.setHeader('Content-Type', 'image/png').send(imageBuffer); } catch (error) { res.status(500).send('Error generating image'); }});
 const mockData = { summaryProfile: { fire: 35.5, water: 20.1, air: 14.9, earth: 29.5 }, participants: [ { name: 'ישראל ישראלי', profile: { fire: 50, water: 25, air: 15, earth: 10 } }, { name: 'משה כהן', profile: { fire: 10, water: 40, air: 30, earth: 20 } }, { name: 'דנה לוי', profile: { fire: 20, water: 10, air: 60, earth: 10 } }, { name: 'אביגיל שרון', profile: { fire: 15, water: 15, air: 15, earth: 55 } }, { name: 'יונתן אדלר', profile: { fire: 25, water: 25, air: 25, earth: 25 } }, { name: 'תמר גולדשטיין', profile: { fire: 80, water: 5, air: 5, earth: 10 } }, { name: 'דוד ביטון', profile: { fire: 5, water: 70, air: 15, earth: 10 } } ], groups: [ { group_name: 'קבוצה 1', profile: { fire: 40, water: 30, air: 20, earth: 10 } }, { group_name: 'קבוצה 2', profile: { fire: 10, water: 20, air: 30, earth: 40 } }, { group_name: 'קבוצת הנשרים', profile: { fire: 60, water: 10, air: 20, earth: 10 } } ] };
+app.get('/images/test/game-summary', async (req, res) => { try { const imageBuffer = await imageGenerator.createGameSummaryImage(mockData.summaryProfile); res.setHeader('Content-Type', 'image/png').send(imageBuffer); } catch (e) { res.status(500).send('Error generating test image'); }});
 app.get('/images/test/participant-list', async (req, res) => { try { const imageBuffer = await imageGenerator.createParticipantListImage(mockData.participants); res.setHeader('Content-Type', 'image/png').send(imageBuffer); } catch (e) { res.status(500).send('Error generating test image'); }});
 app.get('/images/test/group-breakdown', async (req, res) => { try { const imageBuffer = await imageGenerator.createGroupBreakdownImage(mockData.groups); res.setHeader('Content-Type', 'image/png').send(imageBuffer); } catch (e) { res.status(500).send('Error generating test image'); }});
 app.get('/images/test/license-status-valid', async (req, res) => { try { const imageBuffer = await imageGenerator.createLicenseStatusImage('valid'); res.setHeader('Content-Type', 'image/png').send(imageBuffer); } catch (e) { res.status(500).send('Error generating test image'); }});
