@@ -17,10 +17,10 @@ console.log(`✅ Connected to SQLite database at ${dbPath}`);
 db.exec(`
 CREATE TABLE IF NOT EXISTS games (
   game_id TEXT PRIMARY KEY,
-  name TEXT,
-  participant_count INTEGER,      /* [הערה] שדה זה נשמר מטעמי תאימות לאחור, אך לא ישמש יותר לשיוך */
+  name TEXT,                      /* [הוספה] שם פנימי לזיהוי קל */
+  participant_count INTEGER,      /* [הוספה] מספר משתתפים צפוי */
   client_email TEXT,
-  status TEXT,                    /* [שינוי] הוסרה ברירת המחדל 'available'. הסטטוס ייקבע באופן יזום */
+  status TEXT DEFAULT 'available', -- available, assigned, completed
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   assigned_at TEXT,
   completed_at TEXT
@@ -73,67 +73,6 @@ CREATE TABLE IF NOT EXISTS games (
 `);
 
 console.log('✅ Database tables initialized.');
-
-// הוסף את כל הקוד הבא מיד אחרי השורה 'Database tables initialized'
-
-// [הוספה] פונקציית מיגרציה לעדכון טבלת games בלי לאבד מידע
-function runGamesMigration() {
-    try {
-        // [הסבר] pragma user_version הוא כמו מספר גרסה פנימי של בסיס הנתונים.
-        // אנחנו נשתמש בו כדי לוודא שהמיגרציה רצה רק פעם אחת.
-        const version = db.prepare('PRAGMA user_version').get().user_version;
-
-        if (version < 1) {
-            console.log('🚀 Running migration for `games` table (v1)...');
-
-            const migration = db.transaction(() => {
-                // שלב 1: שנה את שם הטבלה הישנה לשם זמני
-                db.exec('ALTER TABLE games RENAME TO games_old');
-
-                // שלב 2: צור את הטבלה החדשה עם המבנה המעודכן (בלי ברירת המחדל)
-                db.exec(`
-                    CREATE TABLE games (
-                        game_id TEXT PRIMARY KEY,
-                        name TEXT,
-                        participant_count INTEGER,
-                        client_email TEXT,
-                        status TEXT,
-                        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                        assigned_at TEXT,
-                        completed_at TEXT
-                    )
-                `);
-
-                // שלב 3: העתק את כל הנתונים מהטבלה הישנה לחדשה
-                db.exec('INSERT INTO games (game_id, name, participant_count, client_email, status, created_at, assigned_at, completed_at) SELECT game_id, name, participant_count, client_email, status, created_at, assigned_at, completed_at FROM games_old');
-
-                // שלב 4: מחק את הטבלה הישנה והזמנית
-                db.exec('DROP TABLE games_old');
-
-                // שלב 5: סמן את המיגרציה כבוצעה על ידי עדכון מספר הגרסה
-                db.prepare('PRAGMA user_version = 1').run();
-                console.log('✅ Migration completed successfully.');
-            });
-
-            migration();
-        } else {
-            console.log('✔️ `games` table is already up to date.');
-        }
-    } catch (e) {
-        console.error('❌ Migration failed:', e.message);
-        // במקרה של כישלון, ננסה לשחזר את המצב המקורי אם הטבלה הזמנית קיימת
-        try {
-            db.exec('DROP TABLE games');
-            db.exec('ALTER TABLE games_old RENAME TO games');
-            console.log('⏪ Database restored to previous state.');
-        } catch (restoreError) {
-            console.error('❌ Could not restore database:', restoreError.message);
-        }
-    }
-}
-
-// [הוספה] קריאה לפונקציית המיגרציה בעת עליית השרת
-runGamesMigration();
 
 // --- הגירת נתונים מורכבת (תרוץ פעם אחת אם צריך) ---
 function migrateOldResults() {
