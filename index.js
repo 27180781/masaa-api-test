@@ -84,7 +84,7 @@ app.get('/api/settings', (req, res) => {
     try {
         const row = db.prepare('SELECT settings_data FROM settings WHERE id = 1').get();
         res.json(row ? JSON.parse(row.settings_data) : {});
-    } catch (e) { console.error('❌ Error reading settings:', e); res.status(500).json({ message: 'Internal Server Error' }); }
+    } catch (e) { res.status(500).json({ message: 'Internal Server Error' }); }
 });
 app.patch('/api/settings', (req, res) => {
     try {
@@ -100,40 +100,40 @@ app.patch('/api/settings', (req, res) => {
         const newSettings = { ...currentSettings, ...decodedFields };
         db.prepare('INSERT OR REPLACE INTO settings (id, settings_data) VALUES (1, ?)').run(JSON.stringify(newSettings));
         res.json({ message: 'Settings updated successfully' });
-    } catch (e) { console.error('❌ Error updating settings:', e); res.status(500).json({ message: 'Internal Server Error' }); }
+    } catch (e) { res.status(500).json({ message: 'Internal Server Error' }); }
 });
 app.get('/api/questions', (req, res) => {
     try {
         const rows = db.prepare('SELECT question_id, question_text, answers_mapping FROM questions').all();
         const questions = rows.map(r => ({ ...r, answers_mapping: JSON.parse(r.answers_mapping) }));
         res.json(questions);
-    } catch (e) { console.error('❌ Error reading questions:', e); res.status(500).json({ message: 'Internal Server Error' }); }
+    } catch (e) { res.status(500).json({ message: 'Internal Server Error' }); }
 });
 app.post('/api/questions', (req, res) => {
     try {
         const { question_id, question_text, answers_mapping } = req.body;
         db.prepare('INSERT OR REPLACE INTO questions (question_id, question_text, answers_mapping) VALUES (?, ?, ?)').run(question_id, question_text, JSON.stringify(answers_mapping));
         res.status(201).json({ message: 'Question added/updated' });
-    } catch (e) { console.error('❌ Error saving question:', e); res.status(500).json({ message: 'Internal Server Error' }); }
+    } catch (e) { res.status(500).json({ message: 'Internal Server Error' }); }
 });
 app.delete('/api/questions/:questionId', (req, res) => {
     try {
         const { questionId } = req.params;
         db.prepare('DELETE FROM questions WHERE question_id = ?').run(questionId);
         res.json({ message: `Question ${questionId} deleted` });
-    } catch (e) { console.error('❌ Error deleting question:', e); res.status(500).json({ message: 'Internal Server Error' }); }
+    } catch (e) { res.status(500).json({ message: 'Internal Server Error' }); }
 });
 app.get('/api/insights', (req, res) => {
     try {
         const row = db.prepare('SELECT insights_data FROM insights WHERE id = 1').get();
         res.json(row ? JSON.parse(row.insights_data) : {});
-    } catch (e) { console.error('❌ Error reading insights:', e); res.status(500).json({ message: 'Internal Server Error' }); }
+    } catch (e) { res.status(500).json({ message: 'Internal Server Error' }); }
 });
 app.post('/api/insights', (req, res) => {
     try {
         db.prepare('INSERT OR REPLACE INTO insights (id, insights_data) VALUES (1, ?)').run(JSON.stringify(req.body));
         res.json({ message: 'Insights saved' });
-    } catch (e) { console.error('❌ Error saving insights:', e); res.status(500).json({ message: 'Internal Server Error' }); }
+    } catch (e) { res.status(500).json({ message: 'Internal Server Error' }); }
 });
 
 // --- Games API (מתוקן ומסודר) ---
@@ -442,6 +442,30 @@ app.post('/api/submit-results', async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
+
+// [הוספה] נתיב דיבאג מיוחד לבדיקת מצב בסיס הנתונים
+app.get('/api/debug/db-check', adminOnly, (req, res) => {
+    try {
+        const gamesCount = db.prepare('SELECT COUNT(*) as count FROM games').get().count;
+        const summariesCount = db.prepare('SELECT COUNT(*) as count FROM game_summaries').get().count;
+        const individualsCount = db.prepare('SELECT COUNT(*) as count FROM individual_results').get().count;
+        
+        const sampleSummaries = db.prepare('SELECT game_id, processed_at FROM game_summaries ORDER BY processed_at DESC LIMIT 10').all();
+
+        res.json({
+            message: "Database Status Check",
+            counts: {
+                games: gamesCount,
+                game_summaries: summariesCount,
+                individual_results: individualsCount
+            },
+            sample_summaries: sampleSummaries
+        });
+    } catch(e) {
+        res.status(500).json({ error: "Failed to check database", details: e.message });
+    }
+});
+
 
 // --- Image Generation & Test Routes (ללא שינוי) ---
 app.get('/images/test/game-summary', async (req, res) => { try { const mockProfile = { fire: 35.5, water: 20.1, air: 14.9, earth: 29.5 }; const imageBuffer = await imageGenerator.createGameSummaryImage(mockProfile); res.setHeader('Content-Type', 'image/png').send(imageBuffer); } catch (error) { res.status(500).send('Error generating test image'); }});
