@@ -71,7 +71,7 @@ app.get('/results_admin', adminOnly, (req, res) => res.sendFile(path.join(__dirn
 app.get('/insights_admin', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'insights_admin.html')));
 app.get('/my-result', (req, res) => res.sendFile(path.join(__dirname, 'my_result.html')));
 app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'client_dashboard.html')));
-app.get('/gallery', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'gallery.html'))); // ⬅️ הוסף את השורה הזו
+app.get('/gallery', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'gallery.html'))); //⬅️ הוסף את השורה הזו
 app.get('/unified_dashboard', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'unified_dashboard.html')));
 
 // ===================================================================
@@ -134,7 +134,7 @@ app.get('/api/games', (req, res) => {
         res.json(games);
     } catch (e) { console.error('❌ Error reading games:', e); res.status(500).json({ message: 'Internal Server Error' }); }
 });
-/*
+
 app.post('/api/games/bulk', (req, res) => {
     try {
         const { games_data } = req.body;
@@ -152,9 +152,8 @@ app.post('/api/games/bulk', (req, res) => {
         res.status(201).json({ message: `${games_data.length} games processed.` });
     } catch (e) { console.error('❌ Error bulk adding games:', e); res.status(500).json({ message: 'Internal Server Error' }); }
 });
-*/
 
-/*
+
 app.post('/api/games/assign', (req, res) => {
     try {
         const { client_email, participant_count } = req.body;
@@ -169,7 +168,7 @@ app.post('/api/games/assign', (req, res) => {
         res.json({ status: 'success', assigned_game_id: game_id, name: name, participant_count: availableGame.participant_count });
     } catch (e) { console.error('❌ Error assigning game:', e); res.status(500).json({ message: 'Internal Server Error' }); }
 });
-*/
+
 // [שינוי] נתיב חדש וראשי ליצירה ושיוך משחק
 app.post('/api/games', (req, res) => {
     try {
