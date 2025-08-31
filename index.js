@@ -21,10 +21,6 @@ const router = YemotRouter({
     defaults: { removeInvalidChars: true }
 });
 
-if (process.env.LOG_LEVEL === 'debug') {
-    console.log(`[DEBUG] archetypes.js loaded with ${archetypes.length} entries.`);
-}
-
 // --- Register Fonts ---
 const regularFontPath = './assets/FbKanuba-Regular.ttf';
 const boldFontPath = './assets/FbKanuba-Bold.ttf';
@@ -66,8 +62,6 @@ app.get('/', adminOnly, (req, res) => res.redirect('/unified_dashboard'));
 app.get('/unified_dashboard', adminOnly, (req, res) => res.sendFile(path.join(__dirname, 'unified_dashboard.html')));
 app.get('/my-result', (req, res) => res.sendFile(path.join(__dirname, 'my_result.html')));
 app.get('/results/:gameId', (req, res) => res.sendFile(path.join(__dirname, 'client_dashboard.html')));
-
-// נתיבים ישנים יותר שהופנו מחדש או נמחקו
 app.get('/master_admin', adminOnly, (req, res) => res.redirect('/unified_dashboard'));
 app.get('/logs', adminOnly, (req, res) => res.redirect('/unified_dashboard#logs'));
 app.get('/admin', adminOnly, (req, res) => res.redirect('/unified_dashboard#questions'));
@@ -275,71 +269,49 @@ app.get('/api/my-result/by-phone/:phone', (req, res) => {
     } catch (e) { console.error('❌ Error searching by phone:', e); res.status(500).json({ message: 'Internal Server Error' }); }
 });
 
-// --- API for IVR System ---
-// --- API for IVR System ---
+/*
+// --- [מנוטרל] API for IVR System ---
+// הבלוק הזה נוטרל באופן זמני כדי למנוע את הקריסה.
+// הוא מכיל טעות הקלדה שגורמת לשגיאה 'no such table: games_old'.
+// לאחר שהמערכת תתייצב, נוכל לתקן ולהחזיר אותו.
+
 app.post('/api/get-intro-text', (req, res) => {
     try {
         const phone = req.body.ApiPhone;
-        if (!phone) {
-            return res.set('Content-Type', 'text/plain; charset=utf-8').send('go_to_folder=hangup');
-        }
-
-        // [תיקון] וידוא שהשאילתה פונה לטבלה הנכונה 'games'
+        if (!phone) return res.set('Content-Type', 'text/plain; charset=utf-8').send('go_to_folder=hangup');
         const query = `SELECT T1.user_name, T1.profile_data FROM individual_results T1 JOIN games T2 ON T1.game_id = T2.game_id WHERE T1.id = ? ORDER BY T2.completed_at DESC LIMIT 1`;
         const userResult = db.prepare(query).get(phone);
-
-        if (!userResult) {
-            const responseString = 'id_list_message=t-הנתונים שלך לא נמצאו במערכת';
-            return res.set('Content-Type', 'text/plain; charset=utf-8').send(responseString);
-        }
-
+        if (!userResult) return res.set('Content-Type', 'text/plain; charset=utf-8').send('id_list_message=t-הנתונים שלך לא נמצאו במערכת');
         const profile = JSON.parse(userResult.profile_data);
         const namePart = userResult.user_name ? `שלום ${userResult.user_name} ` : '';
-
         const messages = [
-            `t-${namePart}על פי הנתונים שיצאו מהמסע שלך פילוח היסודות שלך הוא כך`,
-            `t-יסוד האש ${profile.fire.toFixed(0)} אחוזים`,
-            `t-יסוד המים ${profile.water.toFixed(0)} אחוזים`,
-            `t-יסוד הרוח ${profile.air.toFixed(0)} אחוזים`,
-            `t-יסוד העפר ${profile.earth.toFixed(0)} אחוזים`,
-            `t-מיד תועבר לשמוע בפירוט על התכונות הייחודיות שלך`
+            `t-${namePart}על פי הנתונים שיצאו מהמסע שלך פילוח היסודות שלך הוא כך`, `t-יסוד האש ${profile.fire.toFixed(0)} אחוזים`,
+            `t-יסוד המים ${profile.water.toFixed(0)} אחוזים`, `t-יסוד הרוח ${profile.air.toFixed(0)} אחוזים`,
+            `t-יסוד העפר ${profile.earth.toFixed(0)} אחוזים`, `t-מיד תועבר לשמוע בפירוט על התכונות הייחודיות שלך`
         ];
-        
         const finalResponseString = `id_list_message=${messages.join('.')}&go_to_folder=/1`;
         res.set('Content-Type', 'text/plain; charset=utf-8').send(finalResponseString);
-
     } catch (e) {
         console.error('❌ Error in /api/get-intro-text:', e);
-        const errorString = 'id_list_message=t-אירעה שגיאה בשרת אנא נסה שוב מאוחר יותר';
-        res.set('Content-Type', 'text/plain; charset=utf-8').send(errorString);
+        res.set('Content-Type', 'text/plain; charset=utf-8').send('id_list_message=t-אירעה שגיאה בשרת אנא נסה שוב מאוחר יותר');
     }
 });
-
 app.post('/api/get-archetype/by-phone', (req, res) => {
     try {
         const phone = req.body.ApiPhone;
-        if (!phone) {
-            return res.set('Content-Type', 'text/plain; charset=utf-8').send('go_to_folder=hangup');
-        }
-
-        // [תיקון] וידוא שהשאילתה פונה לטבלה הנכונה 'games'
+        if (!phone) return res.set('Content-Type', 'text/plain; charset=utf-8').send('go_to_folder=hangup');
         const query = `SELECT T1.archetype_id FROM individual_results T1 JOIN games T2 ON T1.game_id = T2.game_id WHERE T1.id = ? ORDER BY T2.completed_at DESC LIMIT 1`;
         const result = db.prepare(query).get(phone);
-
-        if (!result || result.archetype_id === null) {
-            const errorString = 'id_list_message=t-לא נמצאה התאמה עבור מספר הטלפון שלך&go_to_folder=hangup';
-            return res.set('Content-Type', 'text/plain; charset=utf-8').send(errorString);
-        }
-        
+        if (!result || result.archetype_id === null) return res.set('Content-Type', 'text/plain; charset=utf-8').send('id_list_message=t-לא נמצאה התאמה עבור מספר הטלפון שלך&go_to_folder=hangup');
         const responseString = `id_list_message=f-${result.archetype_id}&go_to_folder=/1`;
         res.set('Content-Type', 'text/plain; charset=utf-8').send(responseString);
-
     } catch (e) {
         console.error('❌ Error in /api/get-archetype/by-phone:', e);
-        const errorString = 'id_list_message=t-אירעה שגיאה בשרת&go_to_folder=hangup';
-        res.set('Content-Type', 'text/plain; charset=utf-8').send(errorString);
+        res.set('Content-Type', 'text/plain; charset=utf-8').send('id_list_message=t-אירעה שגיאה בשרת&go_to_folder=hangup');
     }
 });
+*/
+
 app.post('/api/get-archetype/by-code', (req, res) => {
     try {
         const accessCode = req.body.ApiCode;
