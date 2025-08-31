@@ -276,39 +276,68 @@ app.get('/api/my-result/by-phone/:phone', (req, res) => {
 });
 
 // --- API for IVR System ---
+// --- API for IVR System ---
 app.post('/api/get-intro-text', (req, res) => {
     try {
         const phone = req.body.ApiPhone;
-        if (!phone) return res.set('Content-Type', 'text/plain; charset=utf-8').send('go_to_folder=hangup');
+        if (!phone) {
+            return res.set('Content-Type', 'text/plain; charset=utf-8').send('go_to_folder=hangup');
+        }
+
+        // [תיקון] וידוא שהשאילתה פונה לטבלה הנכונה 'games'
         const query = `SELECT T1.user_name, T1.profile_data FROM individual_results T1 JOIN games T2 ON T1.game_id = T2.game_id WHERE T1.id = ? ORDER BY T2.completed_at DESC LIMIT 1`;
         const userResult = db.prepare(query).get(phone);
-        if (!userResult) return res.set('Content-Type', 'text/plain; charset=utf-8').send('id_list_message=t-הנתונים שלך לא נמצאו במערכת');
+
+        if (!userResult) {
+            const responseString = 'id_list_message=t-הנתונים שלך לא נמצאו במערכת';
+            return res.set('Content-Type', 'text/plain; charset=utf-8').send(responseString);
+        }
+
         const profile = JSON.parse(userResult.profile_data);
         const namePart = userResult.user_name ? `שלום ${userResult.user_name} ` : '';
+
         const messages = [
-            `t-${namePart}על פי הנתונים שיצאו מהמסע שלך פילוח היסודות שלך הוא כך`, `t-יסוד האש ${profile.fire.toFixed(0)} אחוזים`,
-            `t-יסוד המים ${profile.water.toFixed(0)} אחוזים`, `t-יסוד הרוח ${profile.air.toFixed(0)} אחוזים`,
-            `t-יסוד העפר ${profile.earth.toFixed(0)} אחוזים`, `t-מיד תועבר לשמוע בפירוט על התכונות הייחודיות שלך`
+            `t-${namePart}על פי הנתונים שיצאו מהמסע שלך פילוח היסודות שלך הוא כך`,
+            `t-יסוד האש ${profile.fire.toFixed(0)} אחוזים`,
+            `t-יסוד המים ${profile.water.toFixed(0)} אחוזים`,
+            `t-יסוד הרוח ${profile.air.toFixed(0)} אחוזים`,
+            `t-יסוד העפר ${profile.earth.toFixed(0)} אחוזים`,
+            `t-מיד תועבר לשמוע בפירוט על התכונות הייחודיות שלך`
         ];
+        
         const finalResponseString = `id_list_message=${messages.join('.')}&go_to_folder=/1`;
         res.set('Content-Type', 'text/plain; charset=utf-8').send(finalResponseString);
+
     } catch (e) {
         console.error('❌ Error in /api/get-intro-text:', e);
-        res.set('Content-Type', 'text/plain; charset=utf-8').send('id_list_message=t-אירעה שגיאה בשרת אנא נסה שוב מאוחר יותר');
+        const errorString = 'id_list_message=t-אירעה שגיאה בשרת אנא נסה שוב מאוחר יותר';
+        res.set('Content-Type', 'text/plain; charset=utf-8').send(errorString);
     }
 });
+
 app.post('/api/get-archetype/by-phone', (req, res) => {
     try {
         const phone = req.body.ApiPhone;
-        if (!phone) return res.set('Content-Type', 'text/plain; charset=utf-8').send('go_to_folder=hangup');
+        if (!phone) {
+            return res.set('Content-Type', 'text/plain; charset=utf-8').send('go_to_folder=hangup');
+        }
+
+        // [תיקון] וידוא שהשאילתה פונה לטבלה הנכונה 'games'
         const query = `SELECT T1.archetype_id FROM individual_results T1 JOIN games T2 ON T1.game_id = T2.game_id WHERE T1.id = ? ORDER BY T2.completed_at DESC LIMIT 1`;
         const result = db.prepare(query).get(phone);
-        if (!result || result.archetype_id === null) return res.set('Content-Type', 'text/plain; charset=utf-8').send('id_list_message=t-לא נמצאה התאמה עבור מספר הטלפון שלך&go_to_folder=hangup');
+
+        if (!result || result.archetype_id === null) {
+            const errorString = 'id_list_message=t-לא נמצאה התאמה עבור מספר הטלפון שלך&go_to_folder=hangup';
+            return res.set('Content-Type', 'text/plain; charset=utf-8').send(errorString);
+        }
+        
         const responseString = `id_list_message=f-${result.archetype_id}&go_to_folder=/1`;
         res.set('Content-Type', 'text/plain; charset=utf-8').send(responseString);
+
     } catch (e) {
         console.error('❌ Error in /api/get-archetype/by-phone:', e);
-        res.set('Content-Type', 'text/plain; charset=utf-8').send('id_list_message=t-אירעה שגיאה בשרת&go_to_folder=hangup');
+        const errorString = 'id_list_message=t-אירעה שגיאה בשרת&go_to_folder=hangup';
+        res.set('Content-Type', 'text/plain; charset=utf-8').send(errorString);
     }
 });
 app.post('/api/get-archetype/by-code', (req, res) => {
