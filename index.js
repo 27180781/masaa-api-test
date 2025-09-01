@@ -200,6 +200,52 @@ app.post('/api/insights', (req, res) => {
         res.json({ message: 'Insights saved' });
     } catch (e) { console.error('❌ Error saving insights:', e); res.status(500).json({ message: 'Internal Server Error' }); }
 });
+// ⬇️ --- הוסף את הקוד הבא ליצירה ושיוך בפעולה אחת --- ⬇️
+
+app.post('/api/games/create-and-assign', (req, res) => {
+    try {
+        const { game_id, client_email, name, participant_count } = req.body;
+
+        // 1. ולידציה על שדות חובה
+        if (!game_id || !client_email) {
+            return res.status(400).json({ message: 'יש לספק game_id ו-client_email' });
+        }
+
+        // 2. בדיקה שהמזהה לא קיים כבר במערכת למניעת כפילויות
+        const existingGame = db.prepare("SELECT game_id FROM games WHERE game_id = ?").get(game_id);
+        if (existingGame) {
+            return res.status(409).json({ message: `משחק עם המזהה ${game_id} כבר קיים במערכת.` });
+        }
+
+        // 3. הרצת פקודת INSERT ליצירת המשחק החדש
+        const pCount = participant_count ? parseInt(participant_count, 10) : null;
+        
+        const sql = `
+            INSERT INTO games (game_id, name, participant_count, client_email, status, assigned_at) 
+            VALUES (?, ?, ?, ?, 'assigned', CURRENT_TIMESTAMP)
+        `;
+
+        const info = db.prepare(sql).run(game_id.trim(), name || null, pCount, client_email);
+
+        // 4. שליחת תשובת הצלחה
+        if (info.changes > 0) {
+            console.log(`✅ Game ${game_id} נוצר ושויך בהצלחה ל- ${client_email}`);
+            const newGame = db.prepare("SELECT * FROM games WHERE game_id = ?").get(game_id);
+            // HTTP Status 201 משמעותו "Created"
+            res.status(201).json({
+                status: 'success',
+                message: 'המשחק נוצר ושויך בהצלחה',
+                created_game: newGame
+            });
+        } else {
+            throw new Error('ההוספה למסד הנתונים נכשלה.');
+        }
+
+    } catch (e) {
+        console.error('❌ Error in create-and-assign game:', e);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+});
 
 // --- Results API (Admin) ---
 app.get('/api/results', (req, res) => {
